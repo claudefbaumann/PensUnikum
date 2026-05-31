@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PensUnikum — Intelligente Schulplanung</title>
+  <meta name="description" content="Pensunikum organisiert Pensen und Schulpläne für ganze Schulverbände — mit Raum für Lehrerwünsche, Lehrplanvorgaben und faire Verteilung." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Work+Sans:wght@300..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./assets/css/style.css" />
+  <style>
+    .reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.5s ease, transform 0.5s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <header>
+    <nav class="nav">
+      <div class="nav-inner">
+        <a href="/" class="nav-logo" aria-label="PensUnikum Home">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <rect width="32" height="32" rx="8" fill="var(--color-primary)"/>
+            <path d="M8 10h10a4 4 0 0 1 0 8H8V10z" fill="white" opacity="0.9"/>
+            <rect x="8" y="20" width="6" height="2" rx="1" fill="white" opacity="0.6"/>
+            <rect x="8" y="24" width="10" height="2" rx="1" fill="white" opacity="0.4"/>
+          </svg>
+          PensUnikum
+        </a>
+        <div class="nav-actions">
+          <button class="theme-toggle" data-theme-toggle aria-label="Dark Mode umschalten">
+            <!-- via JS gesetzt -->
+          </button>
+          <a href="#kontakt" class="btn btn-primary">Kontakt</a>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-inner">
+        <div class="hero-badge">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><circle cx="6" cy="6" r="6"/></svg>
+          Für Schulverbände in der Schweiz
+        </div>
+        <h1>Pensen planen.<br><span>Einfach. Fair. Smart.</span></h1>
+        <p>PensUnikum koordiniert Lehrpensen und Schulpläne für ganze Schulverbände — unter Berücksichtigung von Lehrerwünschen, Lehrplanvorgaben und institutionellen Rahmenbedingungen.</p>
+        <div class="hero-actions">
+          <a href="#features" class="btn btn-primary btn-lg">Mehr erfahren</a>
+          <a href="#wie-es-funktioniert" class="btn btn-ghost btn-lg">Wie es funktioniert</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features" id="features">
+      <div class="section-header reveal">
+        <h2>Alles im Griff — auf einen Blick</h2>
+        <p>Von der Lehrerwunscheingabe bis zum fertigen Schulplan: PensUnikum begleitet den gesamten Planungsprozess.</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card reveal">
+          <svg class="feature-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="6" y="6" width="36" height="36" rx="4"/>
+            <path d="M16 18h16M16 24h10M16 30h12"/>
+          </svg>
+          <h3>Lehrplanvorgaben</h3>
+          <p>Pflichtstunden und Rahmenbedingungen gemäss kantonalem Lehrplan werden automatisch berücksichtigt.</p>
+        </div>
+        <div class="feature-card reveal">
+          <svg class="feature-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="24" cy="16" r="8"/>
+            <path d="M8 40c0-8.837 7.163-16 16-16s16 7.163 16 16"/>
+          </svg>
+          <h3>Lehrerwünsche</h3>
+          <p>Jede Lehrperson kann individuelle Präferenzen und Wünsche einreichen — transparent und nachvollziehbar.</p>
+        </div>
+        <div class="feature-card reveal">
+          <svg class="feature-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 24h36M24 6v36"/>
+            <circle cx="24" cy="24" r="6"/>
+          </svg>
+          <h3>Faire Verteilung</h3>
+          <p>Das System gleicht Wünsche und Anforderungen intelligent ab und schlägt faire Verteilungen vor.</p>
+        </div>
+        <div class="feature-card reveal">
+          <svg class="feature-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="6" y="10" width="36" height="28" rx="3"/>
+            <path d="M16 10V6M32 10V6M6 20h36"/>
+          </svg>
+          <h3>Schulverbandsübersicht</h3>
+          <p>Zentrale Planung über mehrere Schulhäuser hinweg — mit Überblick auf Verbandsebene.</p>
+        </div>
+        <div class="feature-card reveal">
+          <svg class="feature-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M8 36l10-12 8 8 6-8 8 12"/>
+            <rect x="6" y="6" width="36" height="36" rx="4"/>
+          </svg>
+          <h3>Auswertungen</h3>
+          <p>Übersichtliche Statistiken und Berichte zu Pensen, Stunden und Ressourcen auf Knopfdruck.</p>
+        </div>
+        <div class="feature-card reveal">
+          <svg class="feature-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="10" y="6" width="28" height="36" rx="3"/>
+            <path d="M18 16h12M18 22h12M18 28h8"/>
+          </svg>
+          <h3>Export & Dokumentation</h3>
+          <p>Fertige Pläne exportieren als PDF oder Excel — bereit für Behörden, Lehrpersonen und Schulleitung.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Wie es funktioniert -->
+    <section class="how" id="wie-es-funktioniert">
+      <div class="section-header reveal">
+        <h2>In drei Schritten zum fertigen Plan</h2>
+        <p>PensUnikum macht die Schulplanung strukturiert und effizient.</p>
+      </div>
+      <div class="steps">
+        <div class="step reveal">
+          <div class="step-num">1</div>
+          <h3>Wünsche erfassen</h3>
+          <p>Lehrpersonen geben ihre Präferenzen und Verfügbarkeiten digital ein.</p>
+        </div>
+        <div class="step reveal">
+          <div class="step-num">2</div>
+          <h3>Abgleichen</h3>
+          <p>PensUnikum gleicht Wünsche mit Lehrplanvorgaben und Rahmenbedingungen ab.</p>
+        </div>
+        <div class="step reveal">
+          <div class="step-num">3</div>
+          <h3>Plan freigeben</h3>
+          <p>Die Schulleitung prüft, passt an und gibt den fertigen Pensums- und Stundenplan frei.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta" id="kontakt">
+      <div class="cta-inner reveal">
+        <h2>Bereit für smarte Schulplanung?</h2>
+        <p>Kontaktiere uns und erfahre, wie PensUnikum deinen Schulverband entlasten kann.</p>
+        <a href="mailto:info@pensunikum.ch" class="btn btn-white btn-lg">Jetzt Kontakt aufnehmen</a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <p>© 2026 PensUnikum — Intelligente Schulplanung für Schulverbände</p>
+      <p>Entwickelt in der Schweiz 🇨🇭</p>
+    </div>
+  </footer>
+
+  <script src="./assets/js/main.js"></script>
+</body>
+</html>
