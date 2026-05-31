@@ -297,7 +297,7 @@
       <!-- ── ADMIN PANELS ── -->
       <div id="panel-dashboard" class="panel">
         <div class="kpi-grid">
-          <div class="kpi-card"><div class="kpi-label">Schulverbände</div><div class="kpi-value">4</div><div class="kpi-sub">aktive Mandanten</div></div>
+          <div class="kpi-card"><div class="kpi-label">Schulverbände</div><div class="kpi-value" id="kpi-verbaende">4</div><div class="kpi-sub">aktive Mandanten</div></div>
           <div class="kpi-card"><div class="kpi-label">Lehrpersonen</div><div class="kpi-value">87</div><div class="kpi-sub">systemweit</div></div>
           <div class="kpi-card"><div class="kpi-label">Aktive Pläne</div><div class="kpi-value">3</div><div class="kpi-sub">Schuljahr 25/26</div></div>
           <div class="kpi-card"><div class="kpi-label">Offene Wünsche</div><div class="kpi-value" style="color:var(--color-accent)">12</div><div class="kpi-sub">ausstehend</div></div>
@@ -306,12 +306,7 @@
           <div class="card-header"><span class="card-title">Schulverbände</span><button class="btn-sm btn-accent-sm" onclick="showPanel('verbände')">+ Verband hinzufügen</button></div>
           <table>
             <thead><tr><th>Verband</th><th>Schulhäuser</th><th>Lehrpersonen</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-              <tr><td><div class="avatar-cell"><div class="table-avatar">SV</div><div><div class="cell-name">Schulverband Thun-Nord</div><div class="cell-sub">thun-nord.ch</div></div></div></td><td>3</td><td>24</td><td><span class="badge badge-success">Aktiv</span></td><td><button class="btn-sm btn-outline-sm">Verwalten</button></td></tr>
-              <tr><td><div class="avatar-cell"><div class="table-avatar accent">SV</div><div><div class="cell-name">Schulverband Steffisburg</div><div class="cell-sub">steffisburg-schule.ch</div></div></div></td><td>2</td><td>18</td><td><span class="badge badge-success">Aktiv</span></td><td><button class="btn-sm btn-outline-sm">Verwalten</button></td></tr>
-              <tr><td><div class="avatar-cell"><div class="table-avatar">SV</div><div><div class="cell-name">Schulverband Oberland Ost</div><div class="cell-sub">—</div></div></div></td><td>4</td><td>31</td><td><span class="badge badge-success">Aktiv</span></td><td><button class="btn-sm btn-outline-sm">Verwalten</button></td></tr>
-              <tr><td><div class="avatar-cell"><div class="table-avatar accent">SV</div><div><div class="cell-name">Schulverband Spiez</div><div class="cell-sub">schule-spiez.ch</div></div></div></td><td>2</td><td>14</td><td><span class="badge badge-muted">Setup</span></td><td><button class="btn-sm btn-outline-sm">Verwalten</button></td></tr>
-            </tbody>
+            <tbody id="dashboard-vb-tbody"></tbody>
           </table>
         </div>
       </div>
@@ -603,6 +598,26 @@ const VERBAENDE = [
 let deleteTargetId = null;
 let editTargetId = null;
 
+function renderDashboardVbTable(){
+  const tbody = document.getElementById('dashboard-vb-tbody');
+  if(!tbody) return;
+  tbody.innerHTML = VERBAENDE.map((v,i) => `
+    <tr>
+      <td><div class="avatar-cell">
+        <div class="table-avatar ${i%2===1?'accent':''}">${v.kuerzel}</div>
+        <div><div class="cell-name">${v.name}</div><div class="cell-sub">${v.domain||'—'}</div></div>
+      </div></td>
+      <td>${v.schulhaeuser}</td>
+      <td>${v.lehrpersonen}</td>
+      <td><span class="badge ${v.status==='aktiv'?'badge-success':v.status==='inaktiv'?'badge-muted':'badge-accent'}">${v.status.charAt(0).toUpperCase()+v.status.slice(1)}</span></td>
+      <td><button class="btn-sm btn-outline-sm" onclick="goEditFromDashboard(${v.id})">Verwalten</button></td>
+    </tr>`).join('');
+  const kpi=document.getElementById('kpi-verbaende'); if(kpi) kpi.textContent=VERBAENDE.length;
+}
+function goEditFromDashboard(id){
+  showPanel('verbände');
+  setTimeout(()=>editVerbandById(id),50);
+}
 function renderVbTable(){
   const tbody = document.getElementById('vb-tbody');
   if(!tbody) return;
@@ -729,6 +744,7 @@ function showPanel(id){
   activePanel = id;
   closeSidebar();
   if(id==='verbände') showVbList();
+  if(id==='dashboard') renderDashboardVbTable();
 }
 
 </script>
