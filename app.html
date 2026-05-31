@@ -183,6 +183,13 @@
     .overlay{display:none;position:fixed;inset:0;background:oklch(0.1 0 0/0.4);z-index:199;}
     .overlay.active{display:block;}
   </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const _SB_URL = "https://ohavqrlgoaydajfhvcxu.supabase.co";
+    const _SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oYXZxcmxnb2F5ZGFqZmh2Y3h1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNDMyNDEsImV4cCI6MjA5NTgxOTI0MX0.XJuyc02o66ON9tweIABNMUiuJk4lvHRtq6PcybWC7C4";
+    const db = supabase.createClient(_SB_URL, _SB_KEY);
+  </script>
 </head>
 <body>
 
@@ -322,7 +329,7 @@
               <button class="btn-sm btn-accent-sm" onclick="showVbForm()">+ Neuer Verband</button>
             </div>
             <table>
-              <thead><tr><th>Verband</th><th>Schulhäuser</th><th>Lehrpersonen</th><th>Status</th><th>Aktionen</th></tr></thead>
+              <thead><tr><th>Verband</th><th>Schulhäuser</th><th>Lehrpersonen</th><th>Status</th><th>Einladung</th><th>Aktionen</th></tr></thead>
               <tbody id="vb-tbody"></tbody>
             </table>
           </div>
@@ -559,7 +566,7 @@ function doLogin(){
   const firstPanel = r.nav[0].items[0].id;
   document.getElementById('view-login').classList.remove('active');
   document.getElementById('view-app').classList.add('active');
-  showPanel(firstPanel);
+  loadVerbaende().then(() => showPanel(firstPanel));
 }
 
 function showPanel(id){
@@ -588,147 +595,258 @@ let theme = matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';
 root.setAttribute('data-theme',theme);
 toggle.addEventListener('click',()=>{ theme=theme==='dark'?'light':'dark'; root.setAttribute('data-theme',theme); });
 
-// ══ VERBANDSVERWALTUNG ══
-const VERBAENDE = [
-  {id:1,name:'Schulverband Thun-Nord',kuerzel:'SVT',domain:'thun-nord.ch',schulhaeuser:3,lehrpersonen:24,status:'aktiv',slName:'P. Gerber',slEmail:'p.gerber@thun-nord.ch'},
-  {id:2,name:'Schulverband Steffisburg',kuerzel:'SVS',domain:'steffisburg-schule.ch',schulhaeuser:2,lehrpersonen:18,status:'aktiv',slName:'R. Moser',slEmail:'r.moser@steffisburg-schule.ch'},
-  {id:3,name:'Schulverband Oberland Ost',kuerzel:'SVO',domain:'',schulhaeuser:4,lehrpersonen:31,status:'aktiv',slName:'A. Brunner',slEmail:'a.brunner@svo.ch'},
-  {id:4,name:'Schulverband Spiez',kuerzel:'SPZ',domain:'schule-spiez.ch',schulhaeuser:2,lehrpersonen:14,status:'setup',slName:'M. Lüthi',slEmail:'m.luethi@spiez.ch'},
-];
+// ══ VERBANDSVERWALTUNG (Supabase) ══
+let VERBAENDE = [];
 let deleteTargetId = null;
 let editTargetId = null;
 
-function renderDashboardVbTable(){
-  const tbody = document.getElementById('dashboard-vb-tbody');
-  if(!tbody) return;
-  tbody.innerHTML = VERBAENDE.map((v,i) => `
-    <tr>
-      <td><div class="avatar-cell">
-        <div class="table-avatar ${i%2===1?'accent':''}">${v.kuerzel}</div>
-        <div><div class="cell-name">${v.name}</div><div class="cell-sub">${v.domain||'—'}</div></div>
-      </div></td>
-      <td>${v.schulhaeuser}</td>
-      <td>${v.lehrpersonen}</td>
-      <td><span class="badge ${v.status==='aktiv'?'badge-success':v.status==='inaktiv'?'badge-muted':'badge-accent'}">${v.status.charAt(0).toUpperCase()+v.status.slice(1)}</span></td>
-      <td><button class="btn-sm btn-outline-sm" onclick="goEditFromDashboard(${v.id})">Verwalten</button></td>
-    </tr>`).join('');
-  const kpi=document.getElementById('kpi-verbaende'); if(kpi) kpi.textContent=VERBAENDE.length;
-}
-function goEditFromDashboard(id){
-  showPanel('verbände');
-  setTimeout(()=>editVerbandById(id),50);
-}
-function renderVbTable(){
-  const tbody = document.getElementById('vb-tbody');
-  if(!tbody) return;
-  tbody.innerHTML = VERBAENDE.map(v => `
-    <tr>
-      <td><div class="avatar-cell">
-        <div class="table-avatar ${v.id%2===0?'accent':''}">${v.kuerzel}</div>
-        <div><div class="cell-name">${v.name}</div><div class="cell-sub">${v.domain||'—'}</div></div>
-      </div></td>
-      <td>${v.schulhaeuser}</td>
-      <td>${v.lehrpersonen}</td>
-      <td><span class="badge ${v.status==='aktiv'?'badge-success':v.status==='inaktiv'?'badge-muted':'badge-accent'}">${v.status.charAt(0).toUpperCase()+v.status.slice(1)}</span></td>
-      <td style="display:flex;gap:var(--space-2);">
-        <button class="btn-sm btn-outline-sm" onclick="showVbDetail(${v.id})">Detail</button>
-        <button class="btn-sm btn-outline-sm" onclick="editVerbandById(${v.id})">✏️</button>
-        <button class="btn-danger btn-sm" onclick="openDeleteModalById(${v.id})" style="padding:2px var(--space-3);font-size:10px;">🗑</button>
-      </td>
-    </tr>`).join('');
+async function loadVerbaende() {
+  const { data, error } = await db
+    .from('verbaende')
+    .select('id,name,kuerzel,domain,schulhaeuser,status,sl_name,sl_email,einladungen(status,gesendet_am)')
+    .order('name');
+  if (error) { console.error(error); return; }
+  VERBAENDE = (data || []).map(v => ({
+    id: v.id,
+    name: v.name,
+    kuerzel: v.kuerzel || '??',
+    domain: v.domain || '',
+    schulhaeuser: v.schulhaeuser || 1,
+    lehrpersonen: 0,
+    status: v.status || 'aktiv',
+    slName: v.sl_name || '',
+    slEmail: v.sl_email || '',
+    einladungStatus: (v.einladungen && v.einladungen[0]) ? v.einladungen[0].status : 'ausstehend',
+    einladungDatum: (v.einladungen && v.einladungen[0]) ? v.einladungen[0].gesendet_am : null,
+  }));
 }
 
-function showVbList(){
-  document.getElementById('vb-list-view').style.display='block';
-  document.getElementById('vb-form-view').style.display='none';
-  document.getElementById('vb-detail-view').style.display='none';
+async function saveVerbandDB(data, editId) {
+  const payload = {
+    name: data.name, kuerzel: data.kuerzel, domain: data.domain,
+    schulhaeuser: data.schulhaeuser, sl_name: data.slName,
+    sl_email: data.slEmail, status: data.status,
+    aktualisiert_am: new Date().toISOString()
+  };
+  if (editId) {
+    const { error } = await db.from('verbaende').update(payload).eq('id', editId);
+    if (error) { alert('Fehler: ' + error.message); return false; }
+  } else {
+    const { data: row, error } = await db.from('verbaende').insert(payload).select().single();
+    if (error) { alert('Fehler: ' + error.message); return false; }
+    await db.from('einladungen').insert({
+      email: data.slEmail, verband_id: row.id,
+      rolle: 'verbandsleitung', status: 'ausstehend'
+    });
+  }
+  return true;
+}
+
+async function deleteVerbandDB(id) {
+  const { error } = await db.from('verbaende').delete().eq('id', id);
+  if (error) { alert('Fehler: ' + error.message); return false; }
+  return true;
+}
+
+async function sendeEinladung(verbandId, email) {
+  const now = new Date().toISOString();
+  const { data: existing } = await db.from('einladungen')
+    .select('id').eq('verband_id', verbandId).limit(1);
+  if (existing && existing.length > 0) {
+    await db.from('einladungen').update({ status: 'gesendet', gesendet_am: now })
+      .eq('verband_id', verbandId);
+  } else {
+    await db.from('einladungen').insert({
+      email: email, verband_id: verbandId,
+      rolle: 'verbandsleitung', status: 'gesendet', gesendet_am: now
+    });
+  }
+  await loadVerbaende();
+  renderVbTable();
+  renderDashboardVbTable();
+  showToast('Einladung an ' + email + ' gesendet');
+}
+
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:var(--color-success);color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;box-shadow:0 4px 16px rgba(0,0,0,.2)';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+
+function renderVbTable() {
+  const tbody = document.getElementById('vb-tbody');
+  if (!tbody) return;
+  if (VERBAENDE.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--color-text-muted);">Keine Verbände vorhanden</td></tr>';
+    return;
+  }
+  tbody.innerHTML = VERBAENDE.map((v, i) => {
+    const einBadge = v.einladungStatus === 'akzeptiert'
+      ? '<span class="badge badge-success">Akzeptiert</span>'
+      : v.einladungStatus === 'gesendet'
+      ? '<span class="badge badge-primary">Gesendet</span>'
+      : '<span class="badge badge-muted">Ausstehend</span>';
+    const einDatum = v.einladungDatum
+      ? new Date(v.einladungDatum).toLocaleDateString('de-CH', {day:'2-digit',month:'2-digit',year:'numeric'})
+      : '';
+    const sendLabel = v.einladungStatus === 'ausstehend' ? '📨 Senden' : '🔄 Erneut';
+    const sendBtn = v.einladungStatus === 'akzeptiert' ? ''
+      : '<button class="btn-sm btn-outline-sm" onclick="sendeEinladung(\'' + v.id + '\',\'' + v.slEmail + '\')">' + sendLabel + '</button>';
+    return '<tr>'
+      + '<td><div class="avatar-cell">'
+      + '<div class="table-avatar ' + (i%2===1?'accent':'') + '">' + v.kuerzel + '</div>'
+      + '<div><div class="cell-name">' + v.name + '</div>'
+      + '<div class="cell-sub">' + (v.domain||'—') + '</div></div></div></td>'
+      + '<td>' + v.schulhaeuser + '</td>'
+      + '<td>' + v.lehrpersonen + '</td>'
+      + '<td><span class="badge ' + (v.status==='aktiv'?'badge-success':v.status==='inaktiv'?'badge-muted':'badge-accent') + '">' + v.status.charAt(0).toUpperCase()+v.status.slice(1) + '</span></td>'
+      + '<td>' + einBadge + (einDatum ? '<div style="font-size:10px;color:var(--color-text-faint);margin-top:2px;">' + einDatum + '</div>' : '') + '</td>'
+      + '<td style="display:flex;gap:4px;flex-wrap:wrap;">'
+      + '<button class="btn-sm btn-outline-sm" onclick="showVbDetail(\'' + v.id + '\')">Detail</button>'
+      + '<button class="btn-sm btn-outline-sm" onclick="editVerbandById(\'' + v.id + '\')">✏️</button>'
+      + sendBtn
+      + '<button class="btn-danger btn-sm" onclick="openDeleteModalById(\'' + v.id + '\')" style="padding:2px 10px;font-size:10px;">🗑</button>'
+      + '</td></tr>';
+  }).join('');
+}
+
+function renderDashboardVbTable() {
+  const tbody = document.getElementById('dashboard-vb-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = VERBAENDE.map((v, i) => {
+    return '<tr>'
+      + '<td><div class="avatar-cell">'
+      + '<div class="table-avatar ' + (i%2===1?'accent':'') + '">' + v.kuerzel + '</div>'
+      + '<div><div class="cell-name">' + v.name + '</div>'
+      + '<div class="cell-sub">' + (v.domain||'—') + '</div></div></div></td>'
+      + '<td>' + v.schulhaeuser + '</td>'
+      + '<td>' + v.lehrpersonen + '</td>'
+      + '<td><span class="badge ' + (v.status==='aktiv'?'badge-success':v.status==='inaktiv'?'badge-muted':'badge-accent') + '">' + v.status.charAt(0).toUpperCase()+v.status.slice(1) + '</span></td>'
+      + '<td><button class="btn-sm btn-outline-sm" onclick="goEditFromDashboard(\'' + v.id + '\')">Verwalten</button></td>'
+      + '</tr>';
+  }).join('');
+  const kpi = document.getElementById('kpi-verbaende');
+  if (kpi) kpi.textContent = VERBAENDE.length;
+}
+
+function goEditFromDashboard(id) {
+  showPanel('verbände');
+  setTimeout(() => editVerbandById(id), 300);
+}
+
+async function showVbList() {
+  document.getElementById('vb-list-view').style.display = 'block';
+  document.getElementById('vb-form-view').style.display = 'none';
+  document.getElementById('vb-detail-view').style.display = 'none';
+  await loadVerbaende();
   renderVbTable();
 }
-function showVbForm(){
-  document.getElementById('vb-list-view').style.display='none';
-  document.getElementById('vb-form-view').style.display='block';
-  document.getElementById('vb-detail-view').style.display='none';
-  document.getElementById('vb-form-title').textContent='Neuer Schulverband';
-  document.getElementById('vb-edit-id').value='';
-  ['vb-name','vb-kuerzel','vb-domain','vb-sl-name','vb-sl-email'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('vb-schulhaeuser').value=1;
-  document.getElementById('vb-status').value='aktiv';
+
+function showVbForm() {
+  document.getElementById('vb-list-view').style.display = 'none';
+  document.getElementById('vb-form-view').style.display = 'block';
+  document.getElementById('vb-detail-view').style.display = 'none';
+  document.getElementById('vb-form-title').textContent = 'Neuer Schulverband';
+  document.getElementById('vb-edit-id').value = '';
+  ['vb-name','vb-kuerzel','vb-domain','vb-sl-name','vb-sl-email'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('vb-schulhaeuser').value = 1;
+  document.getElementById('vb-status').value = 'aktiv';
 }
-function showVbDetail(id){
-  const v = VERBAENDE.find(x=>x.id===id);
-  if(!v) return;
+
+function showVbDetail(id) {
+  const v = VERBAENDE.find(x => x.id === id);
+  if (!v) return;
   editTargetId = id;
-  document.getElementById('vb-list-view').style.display='none';
-  document.getElementById('vb-form-view').style.display='none';
-  document.getElementById('vb-detail-view').style.display='block';
-  document.getElementById('vb-detail-name').textContent=v.name;
-  document.getElementById('vb-detail-avatar').textContent=v.kuerzel;
+  document.getElementById('vb-list-view').style.display = 'none';
+  document.getElementById('vb-form-view').style.display = 'none';
+  document.getElementById('vb-detail-view').style.display = 'block';
+  document.getElementById('vb-detail-name').textContent = v.name;
+  document.getElementById('vb-detail-avatar').textContent = v.kuerzel;
   const badge = document.getElementById('vb-detail-badge');
-  badge.textContent=v.status.charAt(0).toUpperCase()+v.status.slice(1);
-  badge.className='badge '+(v.status==='aktiv'?'badge-success':v.status==='inaktiv'?'badge-muted':'badge-accent');
-  document.getElementById('vb-detail-grid').innerHTML=`
-    <div class="detail-item"><div class="detail-label">Schulhäuser</div><div class="detail-value">${v.schulhaeuser}</div></div>
-    <div class="detail-item"><div class="detail-label">Lehrpersonen</div><div class="detail-value">${v.lehrpersonen}</div></div>
-    <div class="detail-item"><div class="detail-label">Domain</div><div class="detail-value">${v.domain||'—'}</div></div>
-    <div class="detail-item"><div class="detail-label">Verbandsleitung</div><div class="detail-value">${v.slName}</div></div>
-    <div class="detail-item"><div class="detail-label">E-Mail</div><div class="detail-value" style="font-size:var(--text-sm)">${v.slEmail}</div></div>
-  `;
-  document.getElementById('vb-detail-users').innerHTML=`
-    <tr><td><div class="avatar-cell"><div class="table-avatar">${v.slName.split(' ').map(n=>n[0]).join('')}</div><div><div class="cell-name">${v.slName}</div><div class="cell-sub">${v.slEmail}</div></div></div></td><td><span class="badge badge-accent">Verbandsleitung</span></td><td>SSO</td><td><span class="badge badge-success">Aktiv</span></td></tr>
-  `;
+  badge.textContent = v.status.charAt(0).toUpperCase() + v.status.slice(1);
+  badge.className = 'badge ' + (v.status==='aktiv'?'badge-success':v.status==='inaktiv'?'badge-muted':'badge-accent');
+  document.getElementById('vb-detail-grid').innerHTML =
+    '<div class="detail-item"><div class="detail-label">Schulhäuser</div><div class="detail-value">' + v.schulhaeuser + '</div></div>'
+    + '<div class="detail-item"><div class="detail-label">Lehrpersonen</div><div class="detail-value">' + v.lehrpersonen + '</div></div>'
+    + '<div class="detail-item"><div class="detail-label">Domain</div><div class="detail-value">' + (v.domain||'—') + '</div></div>'
+    + '<div class="detail-item"><div class="detail-label">Verbandsleitung</div><div class="detail-value">' + v.slName + '</div></div>'
+    + '<div class="detail-item"><div class="detail-label">E-Mail</div><div class="detail-value" style="font-size:var(--text-sm)">' + v.slEmail + '</div></div>';
+  const initials = v.slName.split(' ').map(n => n[0]).join('');
+  document.getElementById('vb-detail-users').innerHTML =
+    '<tr><td><div class="avatar-cell">'
+    + '<div class="table-avatar">' + initials + '</div>'
+    + '<div><div class="cell-name">' + v.slName + '</div>'
+    + '<div class="cell-sub">' + v.slEmail + '</div></div></div></td>'
+    + '<td><span class="badge badge-accent">Verbandsleitung</span></td>'
+    + '<td>SSO</td><td><span class="badge badge-success">Aktiv</span></td></tr>';
 }
-function editVerbandById(id){
-  const v = VERBAENDE.find(x=>x.id===id);
-  if(!v) return;
-  document.getElementById('vb-list-view').style.display='none';
-  document.getElementById('vb-form-view').style.display='block';
-  document.getElementById('vb-detail-view').style.display='none';
-  document.getElementById('vb-form-title').textContent='Verband bearbeiten';
-  document.getElementById('vb-edit-id').value=id;
-  document.getElementById('vb-name').value=v.name;
-  document.getElementById('vb-kuerzel').value=v.kuerzel;
-  document.getElementById('vb-domain').value=v.domain||'';
-  document.getElementById('vb-schulhaeuser').value=v.schulhaeuser;
-  document.getElementById('vb-sl-name').value=v.slName;
-  document.getElementById('vb-sl-email').value=v.slEmail;
-  document.getElementById('vb-status').value=v.status;
+
+function editVerbandById(id) {
+  const v = VERBAENDE.find(x => x.id === id);
+  if (!v) return;
+  document.getElementById('vb-list-view').style.display = 'none';
+  document.getElementById('vb-form-view').style.display = 'block';
+  document.getElementById('vb-detail-view').style.display = 'none';
+  document.getElementById('vb-form-title').textContent = 'Verband bearbeiten';
+  document.getElementById('vb-edit-id').value = id;
+  document.getElementById('vb-name').value = v.name;
+  document.getElementById('vb-kuerzel').value = v.kuerzel;
+  document.getElementById('vb-domain').value = v.domain || '';
+  document.getElementById('vb-schulhaeuser').value = v.schulhaeuser;
+  document.getElementById('vb-sl-name').value = v.slName;
+  document.getElementById('vb-sl-email').value = v.slEmail;
+  document.getElementById('vb-status').value = v.status;
 }
-function editVerband(){ editVerbandById(editTargetId); }
-function saveVerband(){
-  const editId = document.getElementById('vb-edit-id').value;
+
+function editVerband() { editVerbandById(editTargetId); }
+
+async function saveVerband() {
+  const editId = document.getElementById('vb-edit-id').value || null;
   const data = {
-    name: document.getElementById('vb-name').value||'Unbenannter Verband',
-    kuerzel: document.getElementById('vb-kuerzel').value||'??',
+    name: document.getElementById('vb-name').value || 'Unbenannter Verband',
+    kuerzel: document.getElementById('vb-kuerzel').value || '??',
     domain: document.getElementById('vb-domain').value,
-    schulhaeuser: parseInt(document.getElementById('vb-schulhaeuser').value)||1,
+    schulhaeuser: parseInt(document.getElementById('vb-schulhaeuser').value) || 1,
     slName: document.getElementById('vb-sl-name').value,
     slEmail: document.getElementById('vb-sl-email').value,
     status: document.getElementById('vb-status').value,
-    lehrpersonen: 0,
   };
-  if(editId){
-    const idx = VERBAENDE.findIndex(x=>x.id==editId);
-    if(idx>=0){ VERBAENDE[idx]={...VERBAENDE[idx],...data}; }
-  } else {
-    data.id = Date.now();
-    VERBAENDE.push(data);
+  const btn = document.querySelector('#vb-form-view .btn-accent-sm');
+  if (btn) { btn.textContent = 'Speichert...'; btn.disabled = true; }
+  const ok = await saveVerbandDB(data, editId);
+  if (btn) { btn.textContent = 'Speichern & Einladung senden'; btn.disabled = false; }
+  if (ok) {
+    showToast(editId ? 'Verband aktualisiert' : 'Verband erstellt & Einladung vorbereitet');
+    await showVbList();
   }
-  showVbList();
 }
-function openDeleteModalById(id){
-  deleteTargetId=id;
-  const v=VERBAENDE.find(x=>x.id===id);
-  document.getElementById('modal-delete-name').textContent=v?v.name:'diesen Verband';
+
+function openDeleteModalById(id) {
+  deleteTargetId = id;
+  const v = VERBAENDE.find(x => x.id === id);
+  document.getElementById('modal-delete-name').textContent = v ? v.name : 'diesen Verband';
   document.getElementById('modal-delete').classList.add('active');
 }
-function openDeleteModal(){ openDeleteModalById(editTargetId); }
-function closeDeleteModal(){ document.getElementById('modal-delete').classList.remove('active'); }
-function confirmDelete(){
-  const idx=VERBAENDE.findIndex(x=>x.id===deleteTargetId);
-  if(idx>=0) VERBAENDE.splice(idx,1);
+
+function openDeleteModal() { openDeleteModalById(editTargetId); }
+function closeDeleteModal() { document.getElementById('modal-delete').classList.remove('active'); }
+
+async function confirmDelete() {
+  const ok = await deleteVerbandDB(deleteTargetId);
   closeDeleteModal();
-  showVbList();
-  showPanel('verbände');
+  if (ok) {
+    showToast('Verband gelöscht');
+    await loadVerbaende();
+    showVbList();
+    showPanel('verbände');
+  }
 }
 
 // Init beim Panel-Wechsel
@@ -743,8 +861,8 @@ function showPanel(id){
   if(navItem){ navItem.classList.add('active'); document.getElementById('topbar-title').textContent = navItem.textContent.trim(); }
   activePanel = id;
   closeSidebar();
-  if(id==='verbände') showVbList();
-  if(id==='dashboard') renderDashboardVbTable();
+  if(id==='verbände'){ showVbList(); }
+  if(id==='dashboard'){ loadVerbaende().then(()=>{ renderDashboardVbTable(); }); }
 }
 
 </script>
