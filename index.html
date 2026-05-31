@@ -1,1 +1,198 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>PensUnikum — Intelligente Schulplanung</title>
+  <meta name="description" content="PensUnikum organisiert Pensen und Schulpläne für ganze Schulverbände — mit Raum für Lehrerwünsche, Lehrplanvorgaben und faire Verteilung."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Work+Sans:wght@300..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./assets/css/style.css"/>
+</head>
+<body>
 
+<header>
+  <nav class="nav">
+    <div class="nav-inner">
+      <!-- LOGO: Buch + Pensunikum-P mit Schlüssel-Motiv -->
+      <a href="/" class="nav-logo" aria-label="PensUnikum">
+        <svg width="38" height="38" viewBox="0 0 38 38" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+          <rect width="38" height="38" rx="10" fill="#1c3a6e"/>
+          <!-- Offenes Buch -->
+          <path d="M8 10 Q19 8 19 10 L19 28 Q8 26 8 28 Z" fill="white" opacity="0.15"/>
+          <path d="M30 10 Q19 8 19 10 L19 28 Q30 26 30 28 Z" fill="white" opacity="0.25"/>
+          <line x1="19" y1="10" x2="19" y2="28" stroke="white" stroke-width="1" opacity="0.5"/>
+          <!-- P aus Balken (Pensum) -->
+          <rect x="11" y="13" width="2.5" height="10" rx="1" fill="white"/>
+          <path d="M13.5 13 Q18 13 18 16 Q18 19 13.5 19" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <!-- Akzent-Punkt orange -->
+          <circle cx="27" cy="26" r="3.5" fill="#e07b2a"/>
+          <path d="M25.5 26 L27 24.5 L28.5 26 L27 27.5 Z" fill="white" stroke="none"/>
+        </svg>
+        <span class="logo-text">Pens<em>U</em>nikum</span>
+        <a href="https://authenticus.ch" target="_blank" rel="noopener noreferrer" class="nav-by-authenticus">by authenticus</a>
+      </a>
+      <div class="nav-actions">
+        <a href="#features" class="btn btn-ghost" style="display:none" id="nav-features">Features</a>
+        <button class="theme-toggle" data-theme-toggle aria-label="Dark Mode umschalten"></button>
+        <a href="./app.html" class="btn btn-outline" style="border:1.5px solid var(--color-primary);color:var(--color-primary);">Demo-App</a>
+          <a href="#kontakt" class="btn btn-accent">Kontakt</a>
+      </div>
+    </div>
+  </nav>
+</header>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero" style="padding-inline:var(--space-6)">
+    <div class="hero-content">
+      <div class="hero-badge">🇨🇭 Für Schweizer Schulverbände</div>
+      <h1>Pensen planen.<br><span>Fair. Klar. Digital.</span></h1>
+      <p class="hero-desc">PensUnikum koordiniert Lehrpensen und Schulpläne für ganze Schulverbände — unter Berücksichtigung von Lehrerwünschen, Lehrplanvorgaben und institutionellen Rahmenbedingungen.</p>
+      <div class="hero-actions">
+        <a href="#features" class="btn btn-primary btn-lg">Features entdecken</a>
+        <a href="#wie-es-funktioniert" class="btn btn-outline btn-lg">Wie es funktioniert</a>
+          <a href="./app.html" class="btn btn-ghost btn-lg" style="color:var(--color-text-muted);">&#x1F9EA; Demo ausprobieren</a>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="hero-card reveal">
+        <div class="hero-card-title">Pensumsübersicht — Schulverband</div>
+        <div class="pensum-item">
+          <div class="pensum-avatar">MH</div>
+          <div class="pensum-info">
+            <div class="pensum-name">M. Huber</div>
+            <div class="pensum-sub">Klasse 3a · 22/24 Std.</div>
+          </div>
+          <div class="pensum-bar-wrap"><div class="pensum-bar" style="width:92%"></div></div>
+        </div>
+        <div class="pensum-item">
+          <div class="pensum-avatar" style="background:var(--color-accent-highlight);color:var(--color-accent)">SR</div>
+          <div class="pensum-info">
+            <div class="pensum-name">S. Ritter</div>
+            <div class="pensum-sub">Klasse 5b · 20/24 Std.</div>
+          </div>
+          <div class="pensum-bar-wrap"><div class="pensum-bar ok" style="width:83%"></div></div>
+        </div>
+        <div class="pensum-item">
+          <div class="pensum-avatar">BK</div>
+          <div class="pensum-info">
+            <div class="pensum-name">B. Keller</div>
+            <div class="pensum-sub">Klasse 2c · 24/24 Std.</div>
+          </div>
+          <div class="pensum-bar-wrap"><div class="pensum-bar" style="width:100%"></div></div>
+        </div>
+        <div class="pensum-item">
+          <div class="pensum-avatar" style="background:var(--color-accent-highlight);color:var(--color-accent)">AT</div>
+          <div class="pensum-info">
+            <div class="pensum-name">A. Tanner</div>
+            <div class="pensum-sub">Klasse 4a · 18/24 Std.</div>
+          </div>
+          <div class="pensum-bar-wrap"><div class="pensum-bar ok" style="width:75%"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features" id="features">
+    <div class="section-header reveal">
+      <h2>Alles, was die Schulplanung braucht</h2>
+      <p>Von der Wunscheingabe bis zum freigegebenen Stundenplan — in einem System.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card reveal">
+        <div class="feature-num">01</div>
+        <h3>Lehrplanvorgaben</h3>
+        <p>Pflichtstunden und Rahmenbedingungen gemäss kantonalem Lehrplan werden automatisch eingehalten.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-num">02</div>
+        <h3>Lehrerwünsche</h3>
+        <p>Jede Lehrperson erfasst Präferenzen, Verfügbarkeiten und Wünsche digital — transparent und nachvollziehbar.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-num">03</div>
+        <h3>Faire Verteilung</h3>
+        <p>PensUnikum gleicht Wünsche mit Anforderungen ab und schlägt faire, begründete Verteilungen vor.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-num">04</div>
+        <h3>Verbands-Übersicht</h3>
+        <p>Zentrale Planung über alle Schulhäuser des Verbands — mit klarem Überblick auf jeder Ebene.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-num">05</div>
+        <h3>Auswertungen</h3>
+        <p>Statistiken zu Pensen, Stunden und Ressourcen — übersichtlich und auf Knopfdruck verfügbar.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-num">06</div>
+        <h3>Export & Freigabe</h3>
+        <p>Fertige Pläne exportieren und freigeben — für Lehrpersonen, Schulleitung und Behörden.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- WIE ES FUNKTIONIERT -->
+  <section class="how" id="wie-es-funktioniert">
+    <div class="section-header reveal">
+      <h2>In drei Schritten zum Plan</h2>
+      <p>Strukturiert, effizient und für alle Beteiligten transparent.</p>
+    </div>
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step-num">1</div>
+        <h3>Wünsche erfassen</h3>
+        <p>Lehrpersonen geben ihre Präferenzen und Verfügbarkeiten digital ein.</p>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">2</div>
+        <h3>Intelligent abgleichen</h3>
+        <p>PensUnikum prüft Wünsche gegen Lehrplanvorgaben und Rahmenbedingungen.</p>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">3</div>
+        <h3>Plan freigeben</h3>
+        <p>Die Schulleitung prüft, passt an und gibt den fertigen Plan frei.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta" id="kontakt">
+    <div class="cta-inner reveal">
+      <h2>Bereit für smarte Schulplanung?</h2>
+      <p>Kontaktiere uns und erfahre, wie PensUnikum deinen Schulverband entlasten kann.</p>
+      <a href="mailto:info@pensunikum.ch" class="btn btn-accent btn-lg">Jetzt Kontakt aufnehmen</a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-logo">
+      <svg width="24" height="24" viewBox="0 0 38 38" fill="none" aria-hidden="true">
+        <rect width="38" height="38" rx="10" fill="#1c3a6e"/>
+        <path d="M8 10 Q19 8 19 10 L19 28 Q8 26 8 28 Z" fill="white" opacity="0.15"/>
+        <path d="M30 10 Q19 8 19 10 L19 28 Q30 26 30 28 Z" fill="white" opacity="0.25"/>
+        <line x1="19" y1="10" x2="19" y2="28" stroke="white" stroke-width="1" opacity="0.5"/>
+        <rect x="11" y="13" width="2.5" height="10" rx="1" fill="white"/>
+        <path d="M13.5 13 Q18 13 18 16 Q18 19 13.5 19" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <circle cx="27" cy="26" r="3.5" fill="#e07b2a"/>
+        <path d="M25.5 26 L27 24.5 L28.5 26 L27 27.5 Z" fill="white" stroke="none"/>
+      </svg>
+      PensUnikum
+    </div>
+    <p>© 2026 PensUnikum · Intelligente Schulplanung für Schulverbände</p>
+    <p>Entwickelt in der Schweiz 🇨🇭</p>
+      <p style="font-size:var(--text-xs);color:var(--color-text-faint);">PensUnikum ist ein Produkt von <a href="https://authenticus.ch" target="_blank" rel="noopener noreferrer" style="color:var(--color-accent);text-decoration:underline;text-underline-offset:3px;">authenticus GmbH</a></p>
+  </div>
+</footer>
+
+<script src="./assets/js/main.js"></script>
+</body>
+</html>
