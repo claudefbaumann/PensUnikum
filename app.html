@@ -147,6 +147,29 @@
     .bar.warn{background:var(--color-accent);}
     .bar.full{background:var(--color-success);}
 
+
+    /* MODAL */
+    .modal-overlay{position:fixed;inset:0;background:oklch(0.1 0 0/0.5);z-index:300;display:none;align-items:center;justify-content:center;padding:var(--space-4);}
+    .modal-overlay.active{display:flex;}
+    .modal{background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-xl);width:100%;max-width:480px;box-shadow:var(--shadow-lg);animation:modalIn .2s ease;}
+    @keyframes modalIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:var(--space-5) var(--space-6);border-bottom:1px solid var(--color-border);}
+    .modal-title{font-size:var(--text-base);font-weight:700;}
+    .modal-body{padding:var(--space-6);}
+    .modal-footer{display:flex;justify-content:flex-end;gap:var(--space-3);padding:var(--space-4) var(--space-6);border-top:1px solid var(--color-border);}
+    .btn-danger{background:#c0392b;color:#fff;padding:var(--space-2) var(--space-5);border-radius:var(--radius-full);font-size:var(--text-sm);font-weight:600;transition:all var(--transition);}
+    .btn-danger:hover{background:#a93226;}
+    .btn-cancel{padding:var(--space-2) var(--space-5);border-radius:var(--radius-full);border:1.5px solid var(--color-border);font-size:var(--text-sm);font-weight:600;color:var(--color-text-muted);transition:all var(--transition);}
+    .btn-cancel:hover{border-color:var(--color-primary);color:var(--color-primary);}
+    /* DETAIL PANEL */
+    .detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--space-4);margin-bottom:var(--space-6);}
+    .detail-item{background:var(--color-surface-offset);border-radius:var(--radius-lg);padding:var(--space-4);}
+    .detail-label{font-size:var(--text-xs);font-weight:700;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--space-1);}
+    .detail-value{font-size:var(--text-base);font-weight:600;}
+    .action-bar{display:flex;gap:var(--space-3);margin-bottom:var(--space-6);flex-wrap:wrap;}
+    .back-btn{display:inline-flex;align-items:center;gap:var(--space-2);color:var(--color-text-muted);font-size:var(--text-sm);cursor:pointer;margin-bottom:var(--space-5);transition:color var(--transition);}
+    .back-btn:hover{color:var(--color-text);}
+    .tag{display:inline-flex;align-items:center;gap:var(--space-1);padding:2px var(--space-2);background:var(--color-surface-offset);border-radius:var(--radius-full);font-size:10px;color:var(--color-text-muted);}
     /* MOBILE SIDEBAR */
     .menu-btn{display:none;}
     @media(max-width:768px){
@@ -295,14 +318,78 @@
 
       <!-- ── VERBÄNDE PANEL ── -->
       <div id="panel-verbände" class="panel">
-        <div class="card">
-          <div class="card-header"><span class="card-title">Verband hinzufügen</span></div>
-          <div style="padding:var(--space-6);display:grid;gap:var(--space-4);max-width:480px;">
-            <div class="form-group"><label class="form-label">Verbandsname</label><input class="form-input" placeholder="z.B. Schulverband Thun-Nord"/></div>
-            <div class="form-group"><label class="form-label">Domain</label><input class="form-input" placeholder="z.B. thun-nord.ch"/></div>
-            <div class="form-group"><label class="form-label">Verbandsleitung — E-Mail</label><input class="form-input" type="email" placeholder="schulleitung@verband.ch"/></div>
-            <div class="form-group"><label class="form-label">Verbandsleitung — Name</label><input class="form-input" placeholder="Vorname Nachname"/></div>
-            <button class="btn-sm btn-accent-sm" style="width:fit-content;padding:var(--space-2) var(--space-6);">Verband erstellen & Einladung senden</button>
+
+        <!-- Liste -->
+        <div id="vb-list-view">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Schulverbände</span>
+              <button class="btn-sm btn-accent-sm" onclick="showVbForm()">+ Neuer Verband</button>
+            </div>
+            <table>
+              <thead><tr><th>Verband</th><th>Schulhäuser</th><th>Lehrpersonen</th><th>Status</th><th>Aktionen</th></tr></thead>
+              <tbody id="vb-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Formular: Neuer Verband -->
+        <div id="vb-form-view" style="display:none;">
+          <div class="back-btn" onclick="showVbList()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            Zurück zur Übersicht
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title" id="vb-form-title">Neuer Schulverband</span></div>
+            <div style="padding:var(--space-6);display:grid;gap:var(--space-4);max-width:520px;">
+              <input type="hidden" id="vb-edit-id" value=""/>
+              <div class="form-group"><label class="form-label">Verbandsname *</label><input class="form-input" id="vb-name" placeholder="z.B. Schulverband Thun-Nord"/></div>
+              <div class="form-group"><label class="form-label">Kürzel</label><input class="form-input" id="vb-kuerzel" placeholder="z.B. SVT" maxlength="4"/></div>
+              <div class="form-group"><label class="form-label">Domain</label><input class="form-input" id="vb-domain" placeholder="z.B. thun-nord.ch"/></div>
+              <div class="form-group"><label class="form-label">Anzahl Schulhäuser</label><input class="form-input" type="number" id="vb-schulhaeuser" value="1" min="1" max="20"/></div>
+              <hr style="border:none;border-top:1px solid var(--color-divider);"/>
+              <div style="font-size:var(--text-sm);font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.05em;">Verbandsleitung</div>
+              <div class="form-group"><label class="form-label">Name *</label><input class="form-input" id="vb-sl-name" placeholder="Vorname Nachname"/></div>
+              <div class="form-group"><label class="form-label">E-Mail *</label><input class="form-input" type="email" id="vb-sl-email" placeholder="schulleitung@verband.ch"/></div>
+              <div class="form-group"><label class="form-label">Status</label>
+                <select class="form-input" id="vb-status">
+                  <option value="aktiv">Aktiv</option>
+                  <option value="setup">Setup (noch nicht aktiv)</option>
+                  <option value="inaktiv">Inaktiv</option>
+                </select>
+              </div>
+              <div style="display:flex;gap:var(--space-3);">
+                <button class="btn-sm btn-accent-sm" style="padding:var(--space-2) var(--space-8);" onclick="saveVerband()">Speichern & Einladung senden</button>
+                <button class="btn-cancel" onclick="showVbList()">Abbrechen</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detail-Ansicht -->
+        <div id="vb-detail-view" style="display:none;">
+          <div class="back-btn" onclick="showVbList()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            Zurück zur Übersicht
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-6);">
+            <div class="user-avatar" id="vb-detail-avatar" style="width:48px;height:48px;font-size:var(--text-base);">SV</div>
+            <div>
+              <h2 style="font-family:var(--font-display);font-size:var(--text-xl);" id="vb-detail-name">—</h2>
+              <span class="badge badge-success" id="vb-detail-badge">Aktiv</span>
+            </div>
+          </div>
+          <div class="action-bar">
+            <button class="btn-sm btn-outline-sm" onclick="editVerband()">✏️ Bearbeiten</button>
+            <button class="btn-danger btn-sm" onclick="openDeleteModal()">🗑 Verband löschen</button>
+          </div>
+          <div class="detail-grid" id="vb-detail-grid"></div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">Lehrpersonen</span><button class="btn-sm btn-accent-sm">+ Einladen</button></div>
+            <table>
+              <thead><tr><th>Person</th><th>Rolle</th><th>Login</th><th>Status</th></tr></thead>
+              <tbody id="vb-detail-users"></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -505,6 +592,168 @@ const root = document.documentElement;
 let theme = matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';
 root.setAttribute('data-theme',theme);
 toggle.addEventListener('click',()=>{ theme=theme==='dark'?'light':'dark'; root.setAttribute('data-theme',theme); });
+
+// ══ VERBANDSVERWALTUNG ══
+const VERBAENDE = [
+  {id:1,name:'Schulverband Thun-Nord',kuerzel:'SVT',domain:'thun-nord.ch',schulhaeuser:3,lehrpersonen:24,status:'aktiv',slName:'P. Gerber',slEmail:'p.gerber@thun-nord.ch'},
+  {id:2,name:'Schulverband Steffisburg',kuerzel:'SVS',domain:'steffisburg-schule.ch',schulhaeuser:2,lehrpersonen:18,status:'aktiv',slName:'R. Moser',slEmail:'r.moser@steffisburg-schule.ch'},
+  {id:3,name:'Schulverband Oberland Ost',kuerzel:'SVO',domain:'',schulhaeuser:4,lehrpersonen:31,status:'aktiv',slName:'A. Brunner',slEmail:'a.brunner@svo.ch'},
+  {id:4,name:'Schulverband Spiez',kuerzel:'SPZ',domain:'schule-spiez.ch',schulhaeuser:2,lehrpersonen:14,status:'setup',slName:'M. Lüthi',slEmail:'m.luethi@spiez.ch'},
+];
+let deleteTargetId = null;
+let editTargetId = null;
+
+function renderVbTable(){
+  const tbody = document.getElementById('vb-tbody');
+  if(!tbody) return;
+  tbody.innerHTML = VERBAENDE.map(v => `
+    <tr>
+      <td><div class="avatar-cell">
+        <div class="table-avatar ${v.id%2===0?'accent':''}">${v.kuerzel}</div>
+        <div><div class="cell-name">${v.name}</div><div class="cell-sub">${v.domain||'—'}</div></div>
+      </div></td>
+      <td>${v.schulhaeuser}</td>
+      <td>${v.lehrpersonen}</td>
+      <td><span class="badge ${v.status==='aktiv'?'badge-success':v.status==='inaktiv'?'badge-muted':'badge-accent'}">${v.status.charAt(0).toUpperCase()+v.status.slice(1)}</span></td>
+      <td style="display:flex;gap:var(--space-2);">
+        <button class="btn-sm btn-outline-sm" onclick="showVbDetail(${v.id})">Detail</button>
+        <button class="btn-sm btn-outline-sm" onclick="editVerbandById(${v.id})">✏️</button>
+        <button class="btn-danger btn-sm" onclick="openDeleteModalById(${v.id})" style="padding:2px var(--space-3);font-size:10px;">🗑</button>
+      </td>
+    </tr>`).join('');
+}
+
+function showVbList(){
+  document.getElementById('vb-list-view').style.display='block';
+  document.getElementById('vb-form-view').style.display='none';
+  document.getElementById('vb-detail-view').style.display='none';
+  renderVbTable();
+}
+function showVbForm(){
+  document.getElementById('vb-list-view').style.display='none';
+  document.getElementById('vb-form-view').style.display='block';
+  document.getElementById('vb-detail-view').style.display='none';
+  document.getElementById('vb-form-title').textContent='Neuer Schulverband';
+  document.getElementById('vb-edit-id').value='';
+  ['vb-name','vb-kuerzel','vb-domain','vb-sl-name','vb-sl-email'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('vb-schulhaeuser').value=1;
+  document.getElementById('vb-status').value='aktiv';
+}
+function showVbDetail(id){
+  const v = VERBAENDE.find(x=>x.id===id);
+  if(!v) return;
+  editTargetId = id;
+  document.getElementById('vb-list-view').style.display='none';
+  document.getElementById('vb-form-view').style.display='none';
+  document.getElementById('vb-detail-view').style.display='block';
+  document.getElementById('vb-detail-name').textContent=v.name;
+  document.getElementById('vb-detail-avatar').textContent=v.kuerzel;
+  const badge = document.getElementById('vb-detail-badge');
+  badge.textContent=v.status.charAt(0).toUpperCase()+v.status.slice(1);
+  badge.className='badge '+(v.status==='aktiv'?'badge-success':v.status==='inaktiv'?'badge-muted':'badge-accent');
+  document.getElementById('vb-detail-grid').innerHTML=`
+    <div class="detail-item"><div class="detail-label">Schulhäuser</div><div class="detail-value">${v.schulhaeuser}</div></div>
+    <div class="detail-item"><div class="detail-label">Lehrpersonen</div><div class="detail-value">${v.lehrpersonen}</div></div>
+    <div class="detail-item"><div class="detail-label">Domain</div><div class="detail-value">${v.domain||'—'}</div></div>
+    <div class="detail-item"><div class="detail-label">Verbandsleitung</div><div class="detail-value">${v.slName}</div></div>
+    <div class="detail-item"><div class="detail-label">E-Mail</div><div class="detail-value" style="font-size:var(--text-sm)">${v.slEmail}</div></div>
+  `;
+  document.getElementById('vb-detail-users').innerHTML=`
+    <tr><td><div class="avatar-cell"><div class="table-avatar">${v.slName.split(' ').map(n=>n[0]).join('')}</div><div><div class="cell-name">${v.slName}</div><div class="cell-sub">${v.slEmail}</div></div></div></td><td><span class="badge badge-accent">Verbandsleitung</span></td><td>SSO</td><td><span class="badge badge-success">Aktiv</span></td></tr>
+  `;
+}
+function editVerbandById(id){
+  const v = VERBAENDE.find(x=>x.id===id);
+  if(!v) return;
+  document.getElementById('vb-list-view').style.display='none';
+  document.getElementById('vb-form-view').style.display='block';
+  document.getElementById('vb-detail-view').style.display='none';
+  document.getElementById('vb-form-title').textContent='Verband bearbeiten';
+  document.getElementById('vb-edit-id').value=id;
+  document.getElementById('vb-name').value=v.name;
+  document.getElementById('vb-kuerzel').value=v.kuerzel;
+  document.getElementById('vb-domain').value=v.domain||'';
+  document.getElementById('vb-schulhaeuser').value=v.schulhaeuser;
+  document.getElementById('vb-sl-name').value=v.slName;
+  document.getElementById('vb-sl-email').value=v.slEmail;
+  document.getElementById('vb-status').value=v.status;
+}
+function editVerband(){ editVerbandById(editTargetId); }
+function saveVerband(){
+  const editId = document.getElementById('vb-edit-id').value;
+  const data = {
+    name: document.getElementById('vb-name').value||'Unbenannter Verband',
+    kuerzel: document.getElementById('vb-kuerzel').value||'??',
+    domain: document.getElementById('vb-domain').value,
+    schulhaeuser: parseInt(document.getElementById('vb-schulhaeuser').value)||1,
+    slName: document.getElementById('vb-sl-name').value,
+    slEmail: document.getElementById('vb-sl-email').value,
+    status: document.getElementById('vb-status').value,
+    lehrpersonen: 0,
+  };
+  if(editId){
+    const idx = VERBAENDE.findIndex(x=>x.id==editId);
+    if(idx>=0){ VERBAENDE[idx]={...VERBAENDE[idx],...data}; }
+  } else {
+    data.id = Date.now();
+    VERBAENDE.push(data);
+  }
+  showVbList();
+}
+function openDeleteModalById(id){
+  deleteTargetId=id;
+  const v=VERBAENDE.find(x=>x.id===id);
+  document.getElementById('modal-delete-name').textContent=v?v.name:'diesen Verband';
+  document.getElementById('modal-delete').classList.add('active');
+}
+function openDeleteModal(){ openDeleteModalById(editTargetId); }
+function closeDeleteModal(){ document.getElementById('modal-delete').classList.remove('active'); }
+function confirmDelete(){
+  const idx=VERBAENDE.findIndex(x=>x.id===deleteTargetId);
+  if(idx>=0) VERBAENDE.splice(idx,1);
+  closeDeleteModal();
+  showVbList();
+  showPanel('verbände');
+}
+
+// Init beim Panel-Wechsel
+const origShowPanel = showPanel;
+// Override showPanel to init vb list
+function showPanel(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const panel = document.getElementById('panel-'+id);
+  if(panel) panel.classList.add('active');
+  const navItem = document.querySelector('[data-panel="'+id+'"]');
+  if(navItem){ navItem.classList.add('active'); document.getElementById('topbar-title').textContent = navItem.textContent.trim(); }
+  activePanel = id;
+  closeSidebar();
+  if(id==='verbände') showVbList();
+}
+
 </script>
+
+<!-- LÖSCH-MODAL -->
+<div class="modal-overlay" id="modal-delete">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Verband löschen</span>
+      <button class="icon-btn" onclick="closeDeleteModal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom:var(--space-4);">Möchtest du den Schulverband <strong id="modal-delete-name"></strong> wirklich löschen?</p>
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:var(--radius-lg);padding:var(--space-4);font-size:var(--text-sm);color:#b91c1c;">
+        ⚠️ Diese Aktion kann nicht rückgängig gemacht werden. Alle Lehrpersonen, Pläne und Daten dieses Verbands werden unwiderruflich gelöscht.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeDeleteModal()">Abbrechen</button>
+      <button class="btn-danger" onclick="confirmDelete()">Endgültig löschen</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
