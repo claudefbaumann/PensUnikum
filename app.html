@@ -983,9 +983,11 @@ async function saveSchulhaus() {
   };
   if (!payload.name) { alert('Bitte Namen eingeben'); return; }
   if (editId) {
-    await db.from('schulhaeuser').update(payload).eq('id', editId);
+    const { error } = await db.from('schulhaeuser').update(payload).eq('id', editId);
+    if (error) { alert('Fehler: ' + error.message); return; }
   } else {
-    await db.from('schulhaeuser').insert(payload);
+    const { error } = await db.from('schulhaeuser').insert(payload);
+    if (error) { alert('Fehler: ' + error.message); return; }
   }
   closeSchulhausModal();
   await loadSchulhaeuser(currentVbIdForSchulhaus);
