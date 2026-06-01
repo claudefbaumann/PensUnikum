@@ -170,6 +170,13 @@
     .back-btn{display:inline-flex;align-items:center;gap:var(--space-2);color:var(--color-text-muted);font-size:var(--text-sm);cursor:pointer;margin-bottom:var(--space-5);transition:color var(--transition);}
     .back-btn:hover{color:var(--color-text);}
     .tag{display:inline-flex;align-items:center;gap:var(--space-1);padding:2px var(--space-2);background:var(--color-surface-offset);border-radius:var(--radius-full);font-size:10px;color:var(--color-text-muted);}
+
+    .modal-grid{display:grid;gap:var(--space-4)}
+    .hint{font-size:var(--text-xs);color:var(--color-text-muted)}
+    .segmented{display:flex;gap:var(--space-2);flex-wrap:wrap}
+    .segmented button{padding:var(--space-2) var(--space-4);border:1px solid var(--color-border);border-radius:var(--radius-full)}
+    .segmented button.active{background:var(--color-primary);color:#fff;border-color:var(--color-primary)}
+
     /* MOBILE SIDEBAR */
     .menu-btn{display:none;}
     @media(max-width:768px){
@@ -184,12 +191,100 @@
     .overlay.active{display:block;}
   </style>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+let currentPersonMode = 'mit_login';
+function openPersonModal(context){
+  document.getElementById('modal-person').classList.add('active');
+  document.getElementById('person-modal-title').textContent = context === 'admin' ? 'Benutzer erfassen' : 'Lehrperson erfassen';
+  document.getElementById('person-role').value = context === 'admin' ? 'lehrperson' : 'lehrperson';
+  document.getElementById('person-vorname').value='';
+  document.getElementById('person-nachname').value='';
+  document.getElementById('person-email').value='';
+  document.getElementById('person-bemerkungen').value='';
+  document.getElementById('person-notify').checked = true;
+  setPersonMode('mit_login');
+}
+function closePersonModal(){ document.getElementById('modal-person').classList.remove('active'); }
+function setPersonMode(mode){
+  currentPersonMode = mode;
+  document.getElementById('mode-login').classList.toggle('active', mode==='mit_login');
+  document.getElementById('mode-nologin').classList.toggle('active', mode==='ohne_login');
+  document.getElementById('mode-hint').textContent = mode==='mit_login'
+    ? 'Lehrperson erhält Zugang und kann eigene Wünsche selbst pflegen.'
+    : 'Schulleitung pflegt Lehrperson und Wünsche stellvertretend; späterer Wechsel auf Login ist möglich.';
+}
+async function savePerson(){
+  const payload = {
+    email: document.getElementById('person-email').value,
+    vorname: document.getElementById('person-vorname').value,
+    nachname: document.getElementById('person-nachname').value,
+    rolle: 'lehrperson',
+    login_methode: currentPersonMode === 'mit_login' ? 'email' : 'email',
+    modus: currentPersonMode,
+    bemerkungen: document.getElementById('person-bemerkungen').value,
+    notify_on_change: document.getElementById('person-notify').checked,
+    aktiv: true
+  };
+  const { error } = await db.from('benutzer').insert(payload);
+  if(error){ alert('Fehler beim Speichern: ' + error.message); return; }
+  if(currentPersonMode === 'mit_login' && payload.email){
+    showToast('Lehrperson erfasst. Einladung/Login kann im nächsten Schritt versendet werden.');
+  } else {
+    showToast('Lehrperson ohne Login erfasst. Pflege erfolgt durch die Schulleitung.');
+  }
+  closePersonModal();
+}
+
+</script>
   <script>
     const _SB_URL = "https://ohavqrlgoaydajfhvcxu.supabase.co";
     const _SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oYXZxcmxnb2F5ZGFqZmh2Y3h1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNDMyNDEsImV4cCI6MjA5NTgxOTI0MX0.XJuyc02o66ON9tweIABNMUiuJk4lvHRtq6PcybWC7C4";
     const db = supabase.createClient(_SB_URL, _SB_KEY);
-  </script>
+  
+let currentPersonMode = 'mit_login';
+function openPersonModal(context){
+  document.getElementById('modal-person').classList.add('active');
+  document.getElementById('person-modal-title').textContent = context === 'admin' ? 'Benutzer erfassen' : 'Lehrperson erfassen';
+  document.getElementById('person-role').value = context === 'admin' ? 'lehrperson' : 'lehrperson';
+  document.getElementById('person-vorname').value='';
+  document.getElementById('person-nachname').value='';
+  document.getElementById('person-email').value='';
+  document.getElementById('person-bemerkungen').value='';
+  document.getElementById('person-notify').checked = true;
+  setPersonMode('mit_login');
+}
+function closePersonModal(){ document.getElementById('modal-person').classList.remove('active'); }
+function setPersonMode(mode){
+  currentPersonMode = mode;
+  document.getElementById('mode-login').classList.toggle('active', mode==='mit_login');
+  document.getElementById('mode-nologin').classList.toggle('active', mode==='ohne_login');
+  document.getElementById('mode-hint').textContent = mode==='mit_login'
+    ? 'Lehrperson erhält Zugang und kann eigene Wünsche selbst pflegen.'
+    : 'Schulleitung pflegt Lehrperson und Wünsche stellvertretend; späterer Wechsel auf Login ist möglich.';
+}
+async function savePerson(){
+  const payload = {
+    email: document.getElementById('person-email').value,
+    vorname: document.getElementById('person-vorname').value,
+    nachname: document.getElementById('person-nachname').value,
+    rolle: 'lehrperson',
+    login_methode: currentPersonMode === 'mit_login' ? 'email' : 'email',
+    modus: currentPersonMode,
+    bemerkungen: document.getElementById('person-bemerkungen').value,
+    notify_on_change: document.getElementById('person-notify').checked,
+    aktiv: true
+  };
+  const { error } = await db.from('benutzer').insert(payload);
+  if(error){ alert('Fehler beim Speichern: ' + error.message); return; }
+  if(currentPersonMode === 'mit_login' && payload.email){
+    showToast('Lehrperson erfasst. Einladung/Login kann im nächsten Schritt versendet werden.');
+  } else {
+    showToast('Lehrperson ohne Login erfasst. Pflege erfolgt durch die Schulleitung.');
+  }
+  closePersonModal();
+}
+
+</script>
 </head>
 <body>
 
@@ -387,7 +482,7 @@
           </div>
           <div class="detail-grid" id="vb-detail-grid"></div>
           <div class="card">
-            <div class="card-header"><span class="card-title">Lehrpersonen</span><button class="btn-sm btn-accent-sm">+ Einladen</button></div>
+            <div class="card-header"><span class="card-title">Lehrpersonen</span><button class="btn-sm btn-accent-sm">+ Erfassen</button></div>
             <table>
               <thead><tr><th>Person</th><th>Rolle</th><th>Login</th><th>Status</th></tr></thead>
               <tbody id="vb-detail-users"></tbody>
@@ -399,7 +494,7 @@
       <!-- ── BENUTZER PANEL ── -->
       <div id="panel-benutzer" class="panel">
         <div class="card">
-          <div class="card-header"><span class="card-title">Alle Benutzer</span><button class="btn-sm btn-accent-sm">+ Benutzer einladen</button></div>
+          <div class="card-header"><span class="card-title">Alle Benutzer</span><button class="btn-sm btn-accent-sm" onclick="openPersonModal('admin')">+ Benutzer erfassen</button></div>
           <table>
             <thead><tr><th>Person</th><th>Verband</th><th>Rolle</th><th>Login</th><th>Status</th><th></th></tr></thead>
             <tbody>
@@ -437,7 +532,7 @@
       <!-- ── SL PENSEN ── -->
       <div id="panel-sl-pensen" class="panel">
         <div class="card">
-          <div class="card-header"><span class="card-title">Lehrpersonen verwalten</span><button class="btn-sm btn-accent-sm">+ Lehrperson einladen</button></div>
+          <div class="card-header"><span class="card-title">Lehrpersonen verwalten</span><button class="btn-sm btn-accent-sm" onclick="openPersonModal('schule')">+ Lehrperson erfassen</button></div>
           <table>
             <thead><tr><th>Lehrperson</th><th>E-Mail</th><th>Rolle</th><th>Pensum</th><th>Stv. bis</th><th></th></tr></thead>
             <tbody>
@@ -865,7 +960,82 @@ function showPanel(id){
   if(id==='dashboard'){ loadVerbaende().then(()=>{ renderDashboardVbTable(); }); }
 }
 
+
+let currentPersonMode = 'mit_login';
+function openPersonModal(context){
+  document.getElementById('modal-person').classList.add('active');
+  document.getElementById('person-modal-title').textContent = context === 'admin' ? 'Benutzer erfassen' : 'Lehrperson erfassen';
+  document.getElementById('person-role').value = context === 'admin' ? 'lehrperson' : 'lehrperson';
+  document.getElementById('person-vorname').value='';
+  document.getElementById('person-nachname').value='';
+  document.getElementById('person-email').value='';
+  document.getElementById('person-bemerkungen').value='';
+  document.getElementById('person-notify').checked = true;
+  setPersonMode('mit_login');
+}
+function closePersonModal(){ document.getElementById('modal-person').classList.remove('active'); }
+function setPersonMode(mode){
+  currentPersonMode = mode;
+  document.getElementById('mode-login').classList.toggle('active', mode==='mit_login');
+  document.getElementById('mode-nologin').classList.toggle('active', mode==='ohne_login');
+  document.getElementById('mode-hint').textContent = mode==='mit_login'
+    ? 'Lehrperson erhält Zugang und kann eigene Wünsche selbst pflegen.'
+    : 'Schulleitung pflegt Lehrperson und Wünsche stellvertretend; späterer Wechsel auf Login ist möglich.';
+}
+async function savePerson(){
+  const payload = {
+    email: document.getElementById('person-email').value,
+    vorname: document.getElementById('person-vorname').value,
+    nachname: document.getElementById('person-nachname').value,
+    rolle: 'lehrperson',
+    login_methode: currentPersonMode === 'mit_login' ? 'email' : 'email',
+    modus: currentPersonMode,
+    bemerkungen: document.getElementById('person-bemerkungen').value,
+    notify_on_change: document.getElementById('person-notify').checked,
+    aktiv: true
+  };
+  const { error } = await db.from('benutzer').insert(payload);
+  if(error){ alert('Fehler beim Speichern: ' + error.message); return; }
+  if(currentPersonMode === 'mit_login' && payload.email){
+    showToast('Lehrperson erfasst. Einladung/Login kann im nächsten Schritt versendet werden.');
+  } else {
+    showToast('Lehrperson ohne Login erfasst. Pflege erfolgt durch die Schulleitung.');
+  }
+  closePersonModal();
+}
+
 </script>
+
+
+<div class="modal-overlay" id="modal-person">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="person-modal-title">Lehrperson erfassen</span>
+      <button class="icon-btn" onclick="closePersonModal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body modal-grid">
+      <input type="hidden" id="person-role" value="lehrperson"/>
+      <div class="form-group"><label class="form-label">Vorname</label><input class="form-input" id="person-vorname" placeholder="Vorname"/></div>
+      <div class="form-group"><label class="form-label">Nachname</label><input class="form-input" id="person-nachname" placeholder="Nachname"/></div>
+      <div class="form-group"><label class="form-label">E-Mail</label><input class="form-input" id="person-email" placeholder="name@schule.ch"/></div>
+      <div class="form-group"><label class="form-label">Erfassungsmodus</label>
+        <div class="segmented">
+          <button type="button" id="mode-login" class="active" onclick="setPersonMode('mit_login')">Mit Login</button>
+          <button type="button" id="mode-nologin" onclick="setPersonMode('ohne_login')">Ohne Login</button>
+        </div>
+        <div class="hint" id="mode-hint">Lehrperson erhält Zugang und kann eigene Wünsche selbst pflegen.</div>
+      </div>
+      <div class="form-group"><label class="form-label">Notizen / Wünsche</label><textarea class="form-input" id="person-bemerkungen" rows="3" placeholder="z.B. Wunschpensum, freie Tage, Hinweise"></textarea></div>
+      <label style="display:flex;gap:8px;align-items:flex-start;font-size:var(--text-sm);"><input type="checkbox" id="person-notify" checked /> Änderungen durch Schulleitung senden automatisch ein Infomail an die Lehrperson.</label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closePersonModal()">Abbrechen</button>
+      <button class="btn-sm btn-accent-sm" onclick="savePerson()">Speichern</button>
+    </div>
+  </div>
+</div>
 
 <!-- LÖSCH-MODAL -->
 <div class="modal-overlay" id="modal-delete">
