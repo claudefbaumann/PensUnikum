@@ -446,6 +446,17 @@ async function savePerson(){
                   <option value="inaktiv">Inaktiv</option>
                 </select>
               </div>
+              <hr style="border:none;border-top:1px solid var(--color-divider);"/>
+              <div style="font-size:var(--text-sm);font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.05em;">Lehrpersonen-Erfassung</div>
+              <div class="form-group">
+                <label class="form-label">Standard-Erfassungsmodus</label>
+                <select class="form-input" id="vb-lp-modus">
+                  <option value="gemischt">Gemischt — Modus pro Lehrperson wählbar</option>
+                  <option value="mit_login">Mit Login — Lehrpersonen erfassen Wünsche selbst</option>
+                  <option value="ohne_login">Ohne Login — Schulleitung pflegt stellvertretend</option>
+                </select>
+                <div class="hint" style="margin-top:4px;">Kann pro Lehrperson nachträglich geändert werden.</div>
+              </div>
               <div style="display:flex;gap:var(--space-3);">
                 <button class="btn-sm btn-accent-sm" style="padding:var(--space-2) var(--space-8);" onclick="saveVerband()">Speichern & Einladung senden</button>
                 <button class="btn-cancel" onclick="showVbList()">Abbrechen</button>
@@ -472,10 +483,13 @@ async function savePerson(){
             <button class="btn-danger btn-sm" onclick="openDeleteModal()">🗑 Verband löschen</button>
           </div>
           <div class="detail-grid" id="vb-detail-grid"></div>
-          <div class="card">
-            <div class="card-header"><span class="card-title">Lehrpersonen</span><button class="btn-sm btn-accent-sm">+ Erfassen</button></div>
+          <div class="card" style="margin-top:var(--space-6)">
+            <div class="card-header">
+              <span class="card-title">Lehrpersonen</span>
+              <button class="btn-sm btn-accent-sm" onclick="openPersonModal('verband')">+ Lehrperson erfassen</button>
+            </div>
             <table>
-              <thead><tr><th>Person</th><th>Rolle</th><th>Login</th><th>Status</th></tr></thead>
+              <thead><tr><th>Person</th><th>E-Mail</th><th>Modus</th><th>Status</th><th></th></tr></thead>
               <tbody id="vb-detail-users"></tbody>
             </table>
           </div>
@@ -863,15 +877,37 @@ function showVbDetail(id) {
     + '<div class="detail-item"><div class="detail-label">Lehrpersonen</div><div class="detail-value">' + v.lehrpersonen + '</div></div>'
     + '<div class="detail-item"><div class="detail-label">Domain</div><div class="detail-value">' + (v.domain||'—') + '</div></div>'
     + '<div class="detail-item"><div class="detail-label">Verbandsleitung</div><div class="detail-value">' + v.slName + '</div></div>'
-    + '<div class="detail-item"><div class="detail-label">E-Mail</div><div class="detail-value" style="font-size:var(--text-sm)">' + v.slEmail + '</div></div>';
+    + '<div class="detail-item"><div class="detail-label">E-Mail</div><div class="detail-value" style="font-size:var(--text-sm)">' + v.slEmail + '</div></div>'
+    + '<div class="detail-item"><div class="detail-label">LP-Erfassungsmodus</div><div class="detail-value">'
+      + (v.lpModus === 'mit_login' ? '🔐 Mit Login' : v.lpModus === 'ohne_login' ? '📋 Ohne Login' : '⇄ Gemischt')
+      + '</div></div>';
   const initials = v.slName.split(' ').map(n => n[0]).join('');
-  document.getElementById('vb-detail-users').innerHTML =
-    '<tr><td><div class="avatar-cell">'
-    + '<div class="table-avatar">' + initials + '</div>'
-    + '<div><div class="cell-name">' + v.slName + '</div>'
-    + '<div class="cell-sub">' + v.slEmail + '</div></div></div></td>'
-    + '<td><span class="badge badge-accent">Verbandsleitung</span></td>'
-    + '<td>SSO</td><td><span class="badge badge-success">Aktiv</span></td></tr>';
+  // Schulleitung als erste Zeile + Demo-Lehrpersonen mit Modus
+  const demoLP = [
+    { name: v.slName, email: v.slEmail, initials: initials, rolle: 'Verbandsleitung', modus: 'mit_login', aktiv: true },
+    { name: 'S. Ritter', email: 's.ritter@' + (v.domain||'schule.ch'), initials: 'SR', rolle: 'Lehrperson', modus: 'ohne_login', aktiv: true },
+    { name: 'A. Tanner', email: 'a.tanner@' + (v.domain||'schule.ch'), initials: 'AT', rolle: 'Lehrperson', modus: 'mit_login', aktiv: true },
+  ];
+  document.getElementById('vb-detail-users').innerHTML = demoLP.map((p, i) => {
+    const modBadge = p.modus === 'mit_login'
+      ? '<span class="badge badge-mode-login" title="Hat App-Zugang">🔐 Mit Login</span>'
+      : '<span class="badge badge-mode-nologin" title="Schulleitung pflegt">📋 Ohne Login</span>';
+    const rolBadge = p.rolle === 'Verbandsleitung'
+      ? '<span class="badge badge-accent">' + p.rolle + '</span>'
+      : '<span class="badge badge-muted">' + p.rolle + '</span>';
+    return '<tr>'
+      + '<td><div class="avatar-cell">'
+      + '<div class="table-avatar ' + (i%2===1?'accent':'') + '">' + p.initials + '</div>'
+      + '<div><div class="cell-name">' + p.name + '</div>'
+      + '<div class="cell-sub">' + rolBadge + '</div></div></div></td>'
+      + '<td style="font-size:var(--text-sm);color:var(--color-text-muted)">' + p.email + '</td>'
+      + '<td>' + modBadge + '</td>'
+      + '<td><span class="badge badge-success">Aktiv</span></td>'
+      + '<td style="display:flex;gap:4px">'
+      + '<button class="btn-sm btn-outline-sm">Bearbeiten</button>'
+      + '<button class="btn-sm btn-outline-sm" onclick="toggleModusInline(this,\'' + p.initials + '\',\'' + p.modus + '\')" title="Modus wechseln">⇄ Modus</button>'
+      + '</td></tr>';
+  }).join('');
 }
 
 function editVerbandById(id) {
@@ -889,6 +925,8 @@ function editVerbandById(id) {
   document.getElementById('vb-sl-name').value = v.slName;
   document.getElementById('vb-sl-email').value = v.slEmail;
   document.getElementById('vb-status').value = v.status;
+  const lpModusEl = document.getElementById('vb-lp-modus');
+  if (lpModusEl) lpModusEl.value = v.lpModus || 'gemischt';
 }
 
 function editVerband() { editVerbandById(editTargetId); }
@@ -903,6 +941,7 @@ async function saveVerband() {
     slName: document.getElementById('vb-sl-name').value,
     slEmail: document.getElementById('vb-sl-email').value,
     status: document.getElementById('vb-status').value,
+    lpModus: document.getElementById('vb-lp-modus') ? document.getElementById('vb-lp-modus').value : 'gemischt',
   };
   const btn = document.querySelector('#vb-form-view .btn-accent-sm');
   if (btn) { btn.textContent = 'Speichert...'; btn.disabled = true; }
@@ -951,6 +990,29 @@ function showPanel(id){
   if(id==='dashboard'){ loadVerbaende().then(()=>{ renderDashboardVbTable(); }); }
 }
 
+
+
+function toggleModusInline(btn, initials, currentModus){
+  const row = btn.closest('tr');
+  const modusCell = row.querySelector('td:nth-child(3)');
+  const newModus = currentModus === 'mit_login' ? 'ohne_login' : 'mit_login';
+  const name = row.querySelector('.cell-name').textContent;
+  if(!confirm(
+    newModus === 'mit_login'
+      ? 'Lehrperson "' + name + '" auf MIT LOGIN umstellen?'
+      : 'Lehrperson "' + name + '" auf OHNE LOGIN umstellen?\nSchulleitung übernimmt Pflege.'
+  )) return;
+  modusCell.innerHTML = newModus === 'mit_login'
+    ? '<span class="badge badge-mode-login">🔐 Mit Login</span>'
+    : '<span class="badge badge-mode-nologin">📋 Ohne Login</span>';
+  btn.onclick = function(){ toggleModusInline(btn, initials, newModus); };
+  if(typeof db !== 'undefined'){
+    db.from('benutzer').update({modus: newModus}).eq('initialen', initials);
+  }
+  showToast(newModus === 'mit_login'
+    ? '✅ "' + name + '" → Mit Login. Infomail gesendet.'
+    : '✅ "' + name + '" → Ohne Login. Schulleitung übernimmt Pflege.');
+}
 
 </script>
 
