@@ -200,82 +200,7 @@
     const _SB_URL = "https://ohavqrlgoaydajfhvcxu.supabase.co";
     const _SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oYXZxcmxnb2F5ZGFqZmh2Y3h1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNDMyNDEsImV4cCI6MjA5NTgxOTI0MX0.XJuyc02o66ON9tweIABNMUiuJk4lvHRtq6PcybWC7C4";
     const db = supabase.createClient(_SB_URL, _SB_KEY);
-  
-let currentPersonMode = 'mit_login';
-function openPersonModal(context){
-  document.getElementById('modal-person').classList.add('active');
-  document.getElementById('person-modal-title').textContent = context === 'admin' ? 'Benutzer erfassen' : 'Lehrperson erfassen';
-  document.getElementById('person-role').value = context === 'admin' ? 'lehrperson' : 'lehrperson';
-  document.getElementById('person-vorname').value='';
-  document.getElementById('person-nachname').value='';
-  document.getElementById('person-email').value='';
-  document.getElementById('person-bemerkungen').value='';
-  document.getElementById('person-notify').checked = true;
-  setPersonMode('mit_login');
-}
-function closePersonModal(){ document.getElementById('modal-person').classList.remove('active'); }
-function setPersonMode(mode){
-  currentPersonMode = mode;
-  document.getElementById('mode-login').classList.toggle('active', mode==='mit_login');
-  document.getElementById('mode-nologin').classList.toggle('active', mode==='ohne_login');
-  document.getElementById('mode-hint').textContent = mode==='mit_login'
-    ? 'Lehrperson erhält Zugang und kann eigene Wünsche selbst pflegen.'
-    : 'Schulleitung pflegt Lehrperson und Wünsche stellvertretend; späterer Wechsel auf Login ist möglich.';
-}
-
-async function toggleModus(btn, initials){
-  const td = btn.closest('td').previousElementSibling;
-  const badge = td.querySelector('.badge');
-  const isLogin = badge.classList.contains('badge-mode-login');
-  const newMode = isLogin ? 'ohne_login' : 'mit_login';
-  const name = btn.closest('tr').querySelector('.cell-name').textContent;
-
-  if(!confirm(
-    newMode === 'mit_login'
-      ? `Lehrperson "${name}" auf MIT LOGIN umstellen?\nEin Einladungs-Link kann im nächsten Schritt versendet werden.`
-      : `Lehrperson "${name}" auf OHNE LOGIN umstellen?\nDie Schulleitung übernimmt die Pflege. Bisherige Daten bleiben erhalten.`
-  )) return;
-
-  badge.classList.remove('badge-mode-login','badge-mode-nologin');
-  badge.classList.add(newMode === 'mit_login' ? 'badge-mode-login' : 'badge-mode-nologin');
-  badge.textContent = newMode === 'mit_login' ? '🔐 Mit Login' : '📋 Ohne Login';
-  badge.title = newMode === 'mit_login' ? 'Lehrperson hat App-Zugang' : 'Schulleitung pflegt stellvertretend';
-
-  // Supabase update (no-op if not connected, badge is already updated optimistically)
-  if(typeof db !== 'undefined'){
-    await db.from('benutzer').update({modus: newMode}).eq('initialen', initials);
-  }
-
-  showToast(
-    newMode === 'mit_login'
-      ? `✅ "${name}" auf Mit Login umgestellt. Infomail an Lehrperson gesendet.`
-      : `✅ "${name}" auf Ohne Login umgestellt. Schulleitung übernimmt Pflege.`
-  );
-}
-
-async function savePerson(){
-  const payload = {
-    email: document.getElementById('person-email').value,
-    vorname: document.getElementById('person-vorname').value,
-    nachname: document.getElementById('person-nachname').value,
-    rolle: 'lehrperson',
-    login_methode: currentPersonMode === 'mit_login' ? 'email' : 'email',
-    modus: currentPersonMode,
-    bemerkungen: document.getElementById('person-bemerkungen').value,
-    notify_on_change: document.getElementById('person-notify').checked,
-    aktiv: true
-  };
-  const { error } = await db.from('benutzer').insert(payload);
-  if(error){ alert('Fehler beim Speichern: ' + error.message); return; }
-  if(currentPersonMode === 'mit_login' && payload.email){
-    showToast('Lehrperson erfasst. Einladung/Login kann im nächsten Schritt versendet werden.');
-  } else {
-    showToast('Lehrperson ohne Login erfasst. Pflege erfolgt durch die Schulleitung.');
-  }
-  closePersonModal();
-}
-
-</script>
+  </script>
 </head>
 <body>
 
@@ -1154,6 +1079,82 @@ async function loadKlassen(schulhausId, schulhausName) {
       + '</tr>';
   }).join('');
 }
+
+
+let currentPersonMode = 'mit_login';
+function openPersonModal(context){
+  document.getElementById('modal-person').classList.add('active');
+  document.getElementById('person-modal-title').textContent = context === 'admin' ? 'Benutzer erfassen' : 'Lehrperson erfassen';
+  document.getElementById('person-role').value = context === 'admin' ? 'lehrperson' : 'lehrperson';
+  document.getElementById('person-vorname').value='';
+  document.getElementById('person-nachname').value='';
+  document.getElementById('person-email').value='';
+  document.getElementById('person-bemerkungen').value='';
+  document.getElementById('person-notify').checked = true;
+  setPersonMode('mit_login');
+}
+function closePersonModal(){ document.getElementById('modal-person').classList.remove('active'); }
+function setPersonMode(mode){
+  currentPersonMode = mode;
+  document.getElementById('mode-login').classList.toggle('active', mode==='mit_login');
+  document.getElementById('mode-nologin').classList.toggle('active', mode==='ohne_login');
+  document.getElementById('mode-hint').textContent = mode==='mit_login'
+    ? 'Lehrperson erhält Zugang und kann eigene Wünsche selbst pflegen.'
+    : 'Schulleitung pflegt Lehrperson und Wünsche stellvertretend; späterer Wechsel auf Login ist möglich.';
+}
+
+async function toggleModus(btn, initials){
+  const td = btn.closest('td').previousElementSibling;
+  const badge = td.querySelector('.badge');
+  const isLogin = badge.classList.contains('badge-mode-login');
+  const newMode = isLogin ? 'ohne_login' : 'mit_login';
+  const name = btn.closest('tr').querySelector('.cell-name').textContent;
+
+  if(!confirm(
+    newMode === 'mit_login'
+      ? `Lehrperson "${name}" auf MIT LOGIN umstellen?\nEin Einladungs-Link kann im nächsten Schritt versendet werden.`
+      : `Lehrperson "${name}" auf OHNE LOGIN umstellen?\nDie Schulleitung übernimmt die Pflege. Bisherige Daten bleiben erhalten.`
+  )) return;
+
+  badge.classList.remove('badge-mode-login','badge-mode-nologin');
+  badge.classList.add(newMode === 'mit_login' ? 'badge-mode-login' : 'badge-mode-nologin');
+  badge.textContent = newMode === 'mit_login' ? '🔐 Mit Login' : '📋 Ohne Login';
+  badge.title = newMode === 'mit_login' ? 'Lehrperson hat App-Zugang' : 'Schulleitung pflegt stellvertretend';
+
+  // Supabase update (no-op if not connected, badge is already updated optimistically)
+  if(typeof db !== 'undefined'){
+    await db.from('benutzer').update({modus: newMode}).eq('initialen', initials);
+  }
+
+  showToast(
+    newMode === 'mit_login'
+      ? `✅ "${name}" auf Mit Login umgestellt. Infomail an Lehrperson gesendet.`
+      : `✅ "${name}" auf Ohne Login umgestellt. Schulleitung übernimmt Pflege.`
+  );
+}
+
+async function savePerson(){
+  const payload = {
+    email: document.getElementById('person-email').value,
+    vorname: document.getElementById('person-vorname').value,
+    nachname: document.getElementById('person-nachname').value,
+    rolle: 'lehrperson',
+    login_methode: currentPersonMode === 'mit_login' ? 'email' : 'email',
+    modus: currentPersonMode,
+    bemerkungen: document.getElementById('person-bemerkungen').value,
+    notify_on_change: document.getElementById('person-notify').checked,
+    aktiv: true
+  };
+  const { error } = await db.from('benutzer').insert(payload);
+  if(error){ alert('Fehler beim Speichern: ' + error.message); return; }
+  if(currentPersonMode === 'mit_login' && payload.email){
+    showToast('Lehrperson erfasst. Einladung/Login kann im nächsten Schritt versendet werden.');
+  } else {
+    showToast('Lehrperson ohne Login erfasst. Pflege erfolgt durch die Schulleitung.');
+  }
+  closePersonModal();
+}
+
 
 </script>
 
