@@ -1051,7 +1051,9 @@ function openSchulhausModal(editId) {
   document.getElementById('schulhaus-modal-title').textContent = editId ? 'Schulhaus bearbeiten' : 'Schulhaus erfassen';
   if (!editId) {
     document.getElementById('schulhaus-name').value = '';
-    document.getElementById('schulhaus-aktiv').value = 'true';
+  } else {
+    const shData = window._schulhaeuser && window._schulhaeuser.find(s => s.id === editId);
+    if (shData) document.getElementById('schulhaus-name').value = shData.name;
   }
   document.getElementById('modal-schulhaus').classList.add('active');
 }
@@ -1084,6 +1086,7 @@ async function loadSchulhaeuser(verbandId) {
     tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--color-text-muted)">Noch keine Schulhäuser erfasst</td></tr>';
     return;
   }
+  window._schulhaeuser = data;
   tbody.innerHTML = data.map((sh, i) => {
     return '<tr>'
       + '<td><div class="avatar-cell"><div class="table-avatar ' + (i%2===1?'accent':'') + '">'
