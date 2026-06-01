@@ -1051,33 +1051,49 @@ async function saveKlasse() {
     await db.from('schulklassen').insert(payload);
   }
   closeKlasseModal();
-  await loadKlassen(currentSchulhausId, document.getElementById('vb-klassen-title').textContent.replace('Klassen: ',''));
+  const shName = document.getElementById('vb-klassen-title').textContent.replace('Klassen — ','');
+  await loadKlassen(currentSchulhausId, shName);
   showToast(editId ? '✅ Klasse aktualisiert' : '✅ Klasse erfasst');
 }
 
-async function loadKlassen(schulhausId, schulhausName) {
+async async function loadKlassen(schulhausId, schulhausName) {
   currentSchulhausId = schulhausId;
   document.getElementById('klasse-schulhaus-id').value = schulhausId;
-  document.getElementById('vb-klassen-title').textContent = 'Klassen: ' + schulhausName;
+  document.getElementById('vb-klassen-title').textContent = 'Klassen — ' + schulhausName;
   const card = document.getElementById('vb-klassen-card');
   card.style.display = 'block';
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const tbody = document.getElementById('vb-detail-klassen');
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--color-text-muted)">Lädt…</td></tr>';
   const { data, error } = await db.from('schulklassen').select('id,bezeichnung,stufe,schuljahr').eq('schulhaus_id', schulhausId).order('bezeichnung');
   if (error) { console.error(error); return; }
-  const tbody = document.getElementById('vb-detail-klassen');
+  window._klassen = data || [];
   if (!data || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--color-text-muted)">Noch keine Klassen erfasst</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--color-text-muted)">Noch keine Klassen erfasst — klicke «+ Klasse erfassen»</td></tr>';
     return;
   }
   tbody.innerHTML = data.map((k, i) => {
+    const stufe = k.stufe || '—';
+    const jahr  = k.schuljahr || '—';
     return '<tr>'
-      + '<td><strong>' + k.bezeichnung + '</strong></td>'
-      + '<td>' + (k.stufe||'—') + '</td>'
-      + '<td>' + (k.schuljahr||'—') + '</td>'
+      + '<td><div class="avatar-cell"><div class="table-avatar ' + (i%2===1?'accent':'') + '" style="font-size:var(--text-xs)">' + k.bezeichnung.substring(0,3).toUpperCase() + '</div>'
+      + '<div class="cell-name">' + k.bezeichnung + '</div></div></td>'
+      + '<td><span class="badge badge-muted">' + stufe + '</span></td>'
+      + '<td>' + jahr + '</td>'
       + '<td>—</td>'
-      + '<td style="display:flex;gap:4px"><button class="btn-sm btn-outline-sm" onclick="openKlasseModal(\''+k.id+'\')">✏️</button></td>'
-      + '</tr>';
+      + '<td style="display:flex;gap:4px">'
+      + '<button class="btn-sm btn-outline-sm" onclick="openKlasseModal(\''+k.id+'\')">✏️</button>'
+      + '<button class="btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="deleteKlasse(\''+k.id+'\',\''+k.bezeichnung+'\')">🗑</button>'
+      + '</td></tr>';
   }).join('');
+}
+
+async function deleteKlasse(id, bezeichnung) {
+  if (!confirm('Klasse «' + bezeichnung + '» wirklich löschen?')) return;
+  const { error } = await db.from('schulklassen').delete().eq('id', id);
+  if (error) { alert('Fehler: ' + error.message); return; }
+  showToast('🗑 Klasse «' + bezeichnung + '» gelöscht');
+  await loadKlassen(currentSchulhausId, document.getElementById('vb-klassen-title').textContent.replace('Klassen — ',''));
 }
 
 
