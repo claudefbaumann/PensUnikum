@@ -1046,7 +1046,7 @@ async function saveKlasse() {
   showToast(editId ? '✅ Klasse aktualisiert' : '✅ Klasse erfasst');
 }
 
-async async function loadKlassen(schulhausId, schulhausName) {
+async function loadKlassen(schulhausId, schulhausName) {
   currentSchulhausId = schulhausId;
   document.getElementById('klasse-schulhaus-id').value = schulhausId;
   document.getElementById('vb-klassen-title').textContent = 'Klassen — ' + schulhausName;
