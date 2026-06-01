@@ -501,7 +501,7 @@ async function savePerson(){
               <button class="btn-sm btn-accent-sm" onclick="openSchulhausModal()">+ Schulhaus erfassen</button>
             </div>
             <table>
-              <thead><tr><th>Schulhaus</th><th>Klassen</th><th>Status</th><th></th></tr></thead>
+              <thead><tr><th>Schulhaus</th><th>Klassen</th><th></th></tr></thead>
               <tbody id="vb-detail-schulhaeuser"></tbody>
             </table>
           </div>
@@ -1061,7 +1061,7 @@ async function saveSchulhaus() {
   const editId = document.getElementById('schulhaus-edit-id').value;
   const payload = {
     name: document.getElementById('schulhaus-name').value,
-    aktiv: document.getElementById('schulhaus-aktiv').value === 'true',
+    aktiv: true,
     verband_id: currentVbIdForSchulhaus
   };
   if (!payload.name) { alert('Bitte Namen eingeben'); return; }
@@ -1085,15 +1085,11 @@ async function loadSchulhaeuser(verbandId) {
     return;
   }
   tbody.innerHTML = data.map((sh, i) => {
-    const statusBadge = sh.aktiv
-      ? '<span class="badge badge-success">Aktiv</span>'
-      : '<span class="badge badge-muted">Inaktiv</span>';
     return '<tr>'
       + '<td><div class="avatar-cell"><div class="table-avatar ' + (i%2===1?'accent':'') + '">'
       + sh.name.substring(0,2).toUpperCase() + '</div>'
       + '<div class="cell-name">' + sh.name + '</div></div></td>'
       + '<td><button class="btn-sm btn-outline-sm" onclick="loadKlassen(\''+sh.id+'\',\''+sh.name+'\')">Klassen anzeigen</button></td>'
-      + '<td>' + statusBadge + '</td>'
       + '<td style="display:flex;gap:4px"><button class="btn-sm btn-outline-sm" onclick="openSchulhausModal(\''+sh.id+'\')">✏️</button></td>'
       + '</tr>';
   }).join('');
@@ -1199,9 +1195,6 @@ async function loadKlassen(schulhausId, schulhausName) {
     <div class="modal-body modal-grid">
       <input type="hidden" id="schulhaus-edit-id"/>
       <div class="form-group"><label class="form-label">Name des Schulhauses *</label><input class="form-input" id="schulhaus-name" placeholder="z.B. Primarschule Allmend"/></div>
-      <div class="form-group"><label class="form-label">Status</label>
-        <select class="form-input" id="schulhaus-aktiv"><option value="true">Aktiv</option><option value="false">Inaktiv</option></select>
-      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeSchulhausModal()">Abbrechen</button>
