@@ -493,6 +493,31 @@ async function savePerson(){
               <tbody id="vb-detail-users"></tbody>
             </table>
           </div>
+
+          <!-- Schulhäuser -->
+          <div class="card" style="margin-top:var(--space-6)">
+            <div class="card-header">
+              <span class="card-title">Schulhäuser</span>
+              <button class="btn-sm btn-accent-sm" onclick="openSchulhausModal()">+ Schulhaus erfassen</button>
+            </div>
+            <table>
+              <thead><tr><th>Schulhaus</th><th>Klassen</th><th>Status</th><th></th></tr></thead>
+              <tbody id="vb-detail-schulhaeuser"></tbody>
+            </table>
+          </div>
+
+          <!-- Schulklassen -->
+          <div class="card" id="vb-klassen-card" style="margin-top:var(--space-6);display:none">
+            <div class="card-header">
+              <span class="card-title" id="vb-klassen-title">Schulklassen</span>
+              <button class="btn-sm btn-accent-sm" onclick="openKlasseModal()">+ Klasse erfassen</button>
+            </div>
+            <table>
+              <thead><tr><th>Klasse</th><th>Stufe</th><th>Schuljahr</th><th>Lektionen</th><th></th></tr></thead>
+              <tbody id="vb-detail-klassen"></tbody>
+            </table>
+          </div>
+
         </div>
       </div>
 
@@ -881,6 +906,8 @@ function showVbDetail(id) {
       + (v.lpModus === 'mit_login' ? '🔐 Mit Login' : v.lpModus === 'ohne_login' ? '📋 Ohne Login' : '⇄ Gemischt')
       + '</div></div>';
   const initials = v.slName.split(' ').map(n => n[0]).join('');
+  if(typeof loadSchulhaeuser === 'function') loadSchulhaeuser(id);
+  document.getElementById('vb-klassen-card').style.display='none';
   // Schulleitung als erste Zeile + Demo-Lehrpersonen mit Modus
   const demoLP = [
     { name: v.slName, email: v.slEmail, initials: initials, rolle: 'Verbandsleitung', modus: 'mit_login', aktiv: true },
@@ -1013,6 +1040,122 @@ function toggleModusInline(btn, initials, currentModus){
     : '✅ "' + name + '" → Ohne Login. Schulleitung übernimmt Pflege.');
 }
 
+
+// ── SCHULHAUS ──
+let currentVbIdForSchulhaus = null;
+let currentSchulhausId = null;
+
+function openSchulhausModal(editId) {
+  currentVbIdForSchulhaus = editTargetId;
+  document.getElementById('schulhaus-edit-id').value = editId || '';
+  document.getElementById('schulhaus-modal-title').textContent = editId ? 'Schulhaus bearbeiten' : 'Schulhaus erfassen';
+  if (!editId) {
+    document.getElementById('schulhaus-name').value = '';
+    document.getElementById('schulhaus-aktiv').value = 'true';
+  }
+  document.getElementById('modal-schulhaus').classList.add('active');
+}
+function closeSchulhausModal() { document.getElementById('modal-schulhaus').classList.remove('active'); }
+
+async function saveSchulhaus() {
+  const editId = document.getElementById('schulhaus-edit-id').value;
+  const payload = {
+    name: document.getElementById('schulhaus-name').value,
+    aktiv: document.getElementById('schulhaus-aktiv').value === 'true',
+    verband_id: currentVbIdForSchulhaus
+  };
+  if (!payload.name) { alert('Bitte Namen eingeben'); return; }
+  if (editId) {
+    await db.from('schulhaeuser').update(payload).eq('id', editId);
+  } else {
+    await db.from('schulhaeuser').insert(payload);
+  }
+  closeSchulhausModal();
+  await loadSchulhaeuser(currentVbIdForSchulhaus);
+  showToast(editId ? '✅ Schulhaus aktualisiert' : '✅ Schulhaus erfasst');
+}
+
+async function loadSchulhaeuser(verbandId) {
+  const { data, error } = await db.from('schulhaeuser').select('id,name,aktiv').eq('verband_id', verbandId).order('name');
+  if (error) { console.error(error); return; }
+  const tbody = document.getElementById('vb-detail-schulhaeuser');
+  if (!tbody) return;
+  if (!data || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--color-text-muted)">Noch keine Schulhäuser erfasst</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map((sh, i) => {
+    const statusBadge = sh.aktiv
+      ? '<span class="badge badge-success">Aktiv</span>'
+      : '<span class="badge badge-muted">Inaktiv</span>';
+    return '<tr>'
+      + '<td><div class="avatar-cell"><div class="table-avatar ' + (i%2===1?'accent':'') + '">'
+      + sh.name.substring(0,2).toUpperCase() + '</div>'
+      + '<div class="cell-name">' + sh.name + '</div></div></td>'
+      + '<td><button class="btn-sm btn-outline-sm" onclick="loadKlassen(\''+sh.id+'\',\''+sh.name+'\')">Klassen anzeigen</button></td>'
+      + '<td>' + statusBadge + '</td>'
+      + '<td style="display:flex;gap:4px"><button class="btn-sm btn-outline-sm" onclick="openSchulhausModal(\''+sh.id+'\')">✏️</button></td>'
+      + '</tr>';
+  }).join('');
+}
+
+// ── SCHULKLASSEN ──
+function openKlasseModal(editId) {
+  document.getElementById('klasse-edit-id').value = editId || '';
+  document.getElementById('klasse-schulhaus-id').value = currentSchulhausId || '';
+  if (!editId) {
+    document.getElementById('klasse-bezeichnung').value = '';
+    document.getElementById('klasse-stufe').value = 'Mittelstufe';
+    document.getElementById('klasse-schuljahr').value = '2025/26';
+  }
+  document.getElementById('modal-klasse').classList.add('active');
+}
+function closeKlasseModal() { document.getElementById('modal-klasse').classList.remove('active'); }
+
+async function saveKlasse() {
+  const editId = document.getElementById('klasse-edit-id').value;
+  const payload = {
+    bezeichnung: document.getElementById('klasse-bezeichnung').value,
+    stufe: document.getElementById('klasse-stufe').value,
+    schuljahr: document.getElementById('klasse-schuljahr').value,
+    schulhaus_id: document.getElementById('klasse-schulhaus-id').value
+  };
+  if (!payload.bezeichnung) { alert('Bitte Bezeichnung eingeben'); return; }
+  if (editId) {
+    await db.from('schulklassen').update(payload).eq('id', editId);
+  } else {
+    await db.from('schulklassen').insert(payload);
+  }
+  closeKlasseModal();
+  await loadKlassen(currentSchulhausId, document.getElementById('vb-klassen-title').textContent.replace('Klassen: ',''));
+  showToast(editId ? '✅ Klasse aktualisiert' : '✅ Klasse erfasst');
+}
+
+async function loadKlassen(schulhausId, schulhausName) {
+  currentSchulhausId = schulhausId;
+  document.getElementById('klasse-schulhaus-id').value = schulhausId;
+  document.getElementById('vb-klassen-title').textContent = 'Klassen: ' + schulhausName;
+  const card = document.getElementById('vb-klassen-card');
+  card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const { data, error } = await db.from('schulklassen').select('id,bezeichnung,stufe,schuljahr').eq('schulhaus_id', schulhausId).order('bezeichnung');
+  if (error) { console.error(error); return; }
+  const tbody = document.getElementById('vb-detail-klassen');
+  if (!data || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--color-text-muted)">Noch keine Klassen erfasst</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map((k, i) => {
+    return '<tr>'
+      + '<td><strong>' + k.bezeichnung + '</strong></td>'
+      + '<td>' + (k.stufe||'—') + '</td>'
+      + '<td>' + (k.schuljahr||'—') + '</td>'
+      + '<td>—</td>'
+      + '<td style="display:flex;gap:4px"><button class="btn-sm btn-outline-sm" onclick="openKlasseModal(\''+k.id+'\')">✏️</button></td>'
+      + '</tr>';
+  }).join('');
+}
+
 </script>
 
 
@@ -1042,6 +1185,55 @@ function toggleModusInline(btn, initials, currentModus){
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closePersonModal()">Abbrechen</button>
       <button class="btn-sm btn-accent-sm" onclick="savePerson()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCHULHAUS-MODAL -->
+<div class="modal-overlay" id="modal-schulhaus">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="schulhaus-modal-title">Schulhaus erfassen</span>
+      <button class="icon-btn" onclick="closeSchulhausModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body modal-grid">
+      <input type="hidden" id="schulhaus-edit-id"/>
+      <div class="form-group"><label class="form-label">Name des Schulhauses *</label><input class="form-input" id="schulhaus-name" placeholder="z.B. Primarschule Allmend"/></div>
+      <div class="form-group"><label class="form-label">Status</label>
+        <select class="form-input" id="schulhaus-aktiv"><option value="true">Aktiv</option><option value="false">Inaktiv</option></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeSchulhausModal()">Abbrechen</button>
+      <button class="btn-sm btn-accent-sm" onclick="saveSchulhaus()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- KLASSE-MODAL -->
+<div class="modal-overlay" id="modal-klasse">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Schulklasse erfassen</span>
+      <button class="icon-btn" onclick="closeKlasseModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body modal-grid">
+      <input type="hidden" id="klasse-edit-id"/>
+      <input type="hidden" id="klasse-schulhaus-id"/>
+      <div class="form-group"><label class="form-label">Bezeichnung *</label><input class="form-input" id="klasse-bezeichnung" placeholder="z.B. 3a"/></div>
+      <div class="form-group"><label class="form-label">Stufe</label>
+        <select class="form-input" id="klasse-stufe">
+          <option value="Kindergarten">Kindergarten</option>
+          <option value="Unterstufe">Unterstufe (1–3)</option>
+          <option value="Mittelstufe">Mittelstufe (4–6)</option>
+          <option value="Oberstufe">Oberstufe (7–9)</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Schuljahr</label><input class="form-input" id="klasse-schuljahr" value="2025/26"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeKlasseModal()">Abbrechen</button>
+      <button class="btn-sm btn-accent-sm" onclick="saveKlasse()">Speichern</button>
     </div>
   </div>
 </div>
