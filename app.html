@@ -171,6 +171,10 @@
     .back-btn:hover{color:var(--color-text);}
     .tag{display:inline-flex;align-items:center;gap:var(--space-1);padding:2px var(--space-2);background:var(--color-surface-offset);border-radius:var(--radius-full);font-size:10px;color:var(--color-text-muted);}
 
+
+    .badge-mode-login{background:color-mix(in oklch,var(--color-primary) 12%,var(--color-bg));color:var(--color-primary);border:1px solid color-mix(in oklch,var(--color-primary) 25%,transparent)}
+    .badge-mode-nologin{background:color-mix(in oklch,var(--color-gold) 12%,var(--color-bg));color:var(--color-gold);border:1px solid color-mix(in oklch,var(--color-gold) 25%,transparent)}
+
     .modal-grid{display:grid;gap:var(--space-4)}
     .hint{font-size:var(--text-xs);color:var(--color-text-muted)}
     .segmented{display:flex;gap:var(--space-2);flex-wrap:wrap}
@@ -213,6 +217,37 @@ function setPersonMode(mode){
     ? 'Lehrperson erhält Zugang und kann eigene Wünsche selbst pflegen.'
     : 'Schulleitung pflegt Lehrperson und Wünsche stellvertretend; späterer Wechsel auf Login ist möglich.';
 }
+
+async function toggleModus(btn, initials){
+  const td = btn.closest('td').previousElementSibling;
+  const badge = td.querySelector('.badge');
+  const isLogin = badge.classList.contains('badge-mode-login');
+  const newMode = isLogin ? 'ohne_login' : 'mit_login';
+  const name = btn.closest('tr').querySelector('.cell-name').textContent;
+
+  if(!confirm(
+    newMode === 'mit_login'
+      ? `Lehrperson "${name}" auf MIT LOGIN umstellen?\nEin Einladungs-Link kann im nächsten Schritt versendet werden.`
+      : `Lehrperson "${name}" auf OHNE LOGIN umstellen?\nDie Schulleitung übernimmt die Pflege. Bisherige Daten bleiben erhalten.`
+  )) return;
+
+  badge.classList.remove('badge-mode-login','badge-mode-nologin');
+  badge.classList.add(newMode === 'mit_login' ? 'badge-mode-login' : 'badge-mode-nologin');
+  badge.textContent = newMode === 'mit_login' ? '🔐 Mit Login' : '📋 Ohne Login';
+  badge.title = newMode === 'mit_login' ? 'Lehrperson hat App-Zugang' : 'Schulleitung pflegt stellvertretend';
+
+  // Supabase update (no-op if not connected, badge is already updated optimistically)
+  if(typeof db !== 'undefined'){
+    await db.from('benutzer').update({modus: newMode}).eq('initialen', initials);
+  }
+
+  showToast(
+    newMode === 'mit_login'
+      ? `✅ "${name}" auf Mit Login umgestellt. Infomail an Lehrperson gesendet.`
+      : `✅ "${name}" auf Ohne Login umgestellt. Schulleitung übernimmt Pflege.`
+  );
+}
+
 async function savePerson(){
   const payload = {
     email: document.getElementById('person-email').value,
@@ -262,6 +297,37 @@ function setPersonMode(mode){
     ? 'Lehrperson erhält Zugang und kann eigene Wünsche selbst pflegen.'
     : 'Schulleitung pflegt Lehrperson und Wünsche stellvertretend; späterer Wechsel auf Login ist möglich.';
 }
+
+async function toggleModus(btn, initials){
+  const td = btn.closest('td').previousElementSibling;
+  const badge = td.querySelector('.badge');
+  const isLogin = badge.classList.contains('badge-mode-login');
+  const newMode = isLogin ? 'ohne_login' : 'mit_login';
+  const name = btn.closest('tr').querySelector('.cell-name').textContent;
+
+  if(!confirm(
+    newMode === 'mit_login'
+      ? `Lehrperson "${name}" auf MIT LOGIN umstellen?\nEin Einladungs-Link kann im nächsten Schritt versendet werden.`
+      : `Lehrperson "${name}" auf OHNE LOGIN umstellen?\nDie Schulleitung übernimmt die Pflege. Bisherige Daten bleiben erhalten.`
+  )) return;
+
+  badge.classList.remove('badge-mode-login','badge-mode-nologin');
+  badge.classList.add(newMode === 'mit_login' ? 'badge-mode-login' : 'badge-mode-nologin');
+  badge.textContent = newMode === 'mit_login' ? '🔐 Mit Login' : '📋 Ohne Login';
+  badge.title = newMode === 'mit_login' ? 'Lehrperson hat App-Zugang' : 'Schulleitung pflegt stellvertretend';
+
+  // Supabase update (no-op if not connected, badge is already updated optimistically)
+  if(typeof db !== 'undefined'){
+    await db.from('benutzer').update({modus: newMode}).eq('initialen', initials);
+  }
+
+  showToast(
+    newMode === 'mit_login'
+      ? `✅ "${name}" auf Mit Login umgestellt. Infomail an Lehrperson gesendet.`
+      : `✅ "${name}" auf Ohne Login umgestellt. Schulleitung übernimmt Pflege.`
+  );
+}
+
 async function savePerson(){
   const payload = {
     email: document.getElementById('person-email').value,
@@ -534,12 +600,12 @@ async function savePerson(){
         <div class="card">
           <div class="card-header"><span class="card-title">Lehrpersonen verwalten</span><button class="btn-sm btn-accent-sm" onclick="openPersonModal('schule')">+ Lehrperson erfassen</button></div>
           <table>
-            <thead><tr><th>Lehrperson</th><th>E-Mail</th><th>Rolle</th><th>Pensum</th><th>Stv. bis</th><th></th></tr></thead>
+            <thead><tr><th>Lehrperson</th><th>E-Mail</th><th>Modus</th><th>Pensum</th><th>Stv. bis</th><th></th></tr></thead>
             <tbody>
-              <tr><td><div class="avatar-cell"><div class="table-avatar">MH</div><div><div class="cell-name">M. Huber</div></div></div></td><td>m.huber@thun-nord.ch</td><td><span class="badge badge-accent">Schulleitung</span></td><td>22/28</td><td>—</td><td><button class="btn-sm btn-outline-sm">Bearbeiten</button></td></tr>
-              <tr><td><div class="avatar-cell"><div class="table-avatar accent">SR</div><div><div class="cell-name">S. Ritter</div></div></div></td><td>s.ritter@thun-nord.ch</td><td><span class="badge badge-muted">Lehrperson</span></td><td>20/28</td><td>—</td><td><button class="btn-sm btn-outline-sm">Bearbeiten</button></td></tr>
-              <tr><td><div class="avatar-cell"><div class="table-avatar">BK</div><div><div class="cell-name">B. Keller</div></div></div></td><td>b.keller@thun-nord.ch</td><td><span class="badge badge-primary">Stv. Schulleitung</span></td><td>24/28</td><td>31.07.2026</td><td><button class="btn-sm btn-outline-sm">Bearbeiten</button></td></tr>
-              <tr><td><div class="avatar-cell"><div class="table-avatar accent">AT</div><div><div class="cell-name">A. Tanner</div></div></div></td><td>a.tanner@thun-nord.ch</td><td><span class="badge badge-muted">Lehrperson</span></td><td>18/28</td><td>—</td><td><button class="btn-sm btn-outline-sm">Bearbeiten</button></td></tr>
+              <tr><td><div class="avatar-cell"><div class="table-avatar">MH</div><div><div class="cell-name">M. Huber</div></div></div></td><td>m.huber@thun-nord.ch</td><td><span class="badge badge-mode-login" title="Lehrperson hat App-Zugang">🔐 Mit Login</span></td><td>22/28</td><td>—</td><td style="display:flex;gap:var(--space-2)"><button class="btn-sm btn-outline-sm">Bearbeiten</button><button class="btn-sm btn-outline-sm" onclick="toggleModus(this,'MH')">Modus wechseln</button></td></tr>
+              <tr><td><div class="avatar-cell"><div class="table-avatar accent">SR</div><div><div class="cell-name">S. Ritter</div></div></div></td><td>s.ritter@thun-nord.ch</td><td><span class="badge badge-mode-nologin" title="Schulleitung pflegt stellvertretend">📋 Ohne Login</span></td><td>20/28</td><td>—</td><td style="display:flex;gap:var(--space-2)"><button class="btn-sm btn-outline-sm">Bearbeiten</button><button class="btn-sm btn-outline-sm" onclick="toggleModus(this,'SR')">Modus wechseln</button></td></tr>
+              <tr><td><div class="avatar-cell"><div class="table-avatar">BK</div><div><div class="cell-name">B. Keller</div></div></div></td><td>b.keller@thun-nord.ch</td><td><span class="badge badge-mode-login" title="Lehrperson hat App-Zugang">🔐 Mit Login</span></td><td>24/28</td><td>31.07.2026</td><td style="display:flex;gap:var(--space-2)"><button class="btn-sm btn-outline-sm">Bearbeiten</button><button class="btn-sm btn-outline-sm" onclick="toggleModus(this,'BK')">Modus wechseln</button></td></tr>
+              <tr><td><div class="avatar-cell"><div class="table-avatar accent">AT</div><div><div class="cell-name">A. Tanner</div></div></div></td><td>a.tanner@thun-nord.ch</td><td><span class="badge badge-mode-nologin" title="Schulleitung pflegt stellvertretend">📋 Ohne Login</span></td><td>18/28</td><td>—</td><td style="display:flex;gap:var(--space-2)"><button class="btn-sm btn-outline-sm">Bearbeiten</button><button class="btn-sm btn-outline-sm" onclick="toggleModus(this,'AT')">Modus wechseln</button></td></tr>
             </tbody>
           </table>
         </div>
@@ -982,6 +1048,37 @@ function setPersonMode(mode){
     ? 'Lehrperson erhält Zugang und kann eigene Wünsche selbst pflegen.'
     : 'Schulleitung pflegt Lehrperson und Wünsche stellvertretend; späterer Wechsel auf Login ist möglich.';
 }
+
+async function toggleModus(btn, initials){
+  const td = btn.closest('td').previousElementSibling;
+  const badge = td.querySelector('.badge');
+  const isLogin = badge.classList.contains('badge-mode-login');
+  const newMode = isLogin ? 'ohne_login' : 'mit_login';
+  const name = btn.closest('tr').querySelector('.cell-name').textContent;
+
+  if(!confirm(
+    newMode === 'mit_login'
+      ? `Lehrperson "${name}" auf MIT LOGIN umstellen?\nEin Einladungs-Link kann im nächsten Schritt versendet werden.`
+      : `Lehrperson "${name}" auf OHNE LOGIN umstellen?\nDie Schulleitung übernimmt die Pflege. Bisherige Daten bleiben erhalten.`
+  )) return;
+
+  badge.classList.remove('badge-mode-login','badge-mode-nologin');
+  badge.classList.add(newMode === 'mit_login' ? 'badge-mode-login' : 'badge-mode-nologin');
+  badge.textContent = newMode === 'mit_login' ? '🔐 Mit Login' : '📋 Ohne Login';
+  badge.title = newMode === 'mit_login' ? 'Lehrperson hat App-Zugang' : 'Schulleitung pflegt stellvertretend';
+
+  // Supabase update (no-op if not connected, badge is already updated optimistically)
+  if(typeof db !== 'undefined'){
+    await db.from('benutzer').update({modus: newMode}).eq('initialen', initials);
+  }
+
+  showToast(
+    newMode === 'mit_login'
+      ? `✅ "${name}" auf Mit Login umgestellt. Infomail an Lehrperson gesendet.`
+      : `✅ "${name}" auf Ohne Login umgestellt. Schulleitung übernimmt Pflege.`
+  );
+}
+
 async function savePerson(){
   const payload = {
     email: document.getElementById('person-email').value,
