@@ -598,13 +598,7 @@
             </div>
           </div>
 
-          <!-- 3. Bemerkungen -->
-          <div class="card">
-            <div class="card-header"><span class="card-title">Sonderwünsche &amp; Bemerkungen</span></div>
-            <div style="padding:var(--space-4)">
-              <textarea class="form-input" id="wunsch-bemerkungen" rows="2" placeholder="z.B. Präferenz Morgenklassen, besondere Absprachen…"></textarea>
-            </div>
-          </div>
+
 
           <!-- 4. Schulstufen & Fächer -->
           <div class="card">
@@ -1973,8 +1967,15 @@ function cycleHalbtag(btn) {
   // Enable/disable slider wrap
   const wrap = btn.parentElement ? btn.parentElement.querySelector('.ht-time-wrap') : null;
   if (wrap) {
-    wrap.style.opacity = next === 'nicht_verfuegbar' ? '0.35' : '1';
-    wrap.style.pointerEvents = next === 'nicht_verfuegbar' ? 'none' : '';
+    if (next === 'nicht_verfuegbar') {
+      wrap.style.opacity = '0.35';
+      wrap.style.pointerEvents = 'none';
+      wrap.style.userSelect = 'none';
+    } else {
+      wrap.style.opacity = '1';
+      wrap.style.pointerEvents = 'auto';
+      wrap.style.userSelect = '';
+    }
   }
 }
 
