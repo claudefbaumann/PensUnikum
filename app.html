@@ -1247,11 +1247,12 @@ async function savePerson(){
     vorname: document.getElementById('person-vorname').value,
     nachname: document.getElementById('person-nachname').value,
     rolle: 'lehrperson',
-    login_methode: currentPersonMode === 'mit_login' ? 'email' : 'email',
+    login_methode: 'email',
     modus: currentPersonMode,
     bemerkungen: document.getElementById('person-bemerkungen').value,
     notify_on_change: document.getElementById('person-notify').checked,
-    aktiv: true
+    aktiv: true,
+    verband_id: editTargetId || null
   };
   const { error } = await db.from('benutzer').insert(payload);
   if(error){ alert('Fehler beim Speichern: ' + error.message); return; }
@@ -1261,6 +1262,11 @@ async function savePerson(){
     showToast('Lehrperson ohne Login erfasst. Pflege erfolgt durch die Schulleitung.');
   }
   closePersonModal();
+  // Reload LP table if we're in Verband detail
+  if (editTargetId) {
+    const v = VERBAENDE.find(x => x.id === editTargetId);
+    if (v) await showVerbandDetail(v);
+  }
 }
 
 
@@ -2025,37 +2031,42 @@ function setSzModusUI(modus) {
 
 async function saveSchulhausZuweisung() {
   const klasseId = document.getElementById('sz-klasse-id').value;
-  if (!klasseId) return;
+  if (!klasseId) { alert('Keine Klasse gewählt'); return; }
 
   if (_sz_modus === 'ganz') {
     const shId = document.getElementById('sz-schulhaus-ganz').value || null;
-    // Update schulklassen
+    if (!shId) { alert('Bitte ein Schulhaus wählen'); return; }
     const { error } = await db.from('schulklassen')
       .update({ schulhaus_id: shId, zuweisung_modus: 'ganz' }).eq('id', klasseId);
-    if (error) { alert('Fehler: ' + error.message); return; }
-    // Delete any per-Fach assignments
+    if (error) { alert('Fehler beim Speichern: ' + error.message); return; }
+    // Clear per-Fach schulhaus assignments
     await db.from('klassen_faecher').update({ schulhaus_id: null }).eq('schulklasse_id', klasseId);
   } else {
+    // First update modus
+    const { error: me } = await db.from('schulklassen')
+      .update({ zuweisung_modus: 'faecher', schulhaus_id: null }).eq('id', klasseId);
+    if (me) { alert('Fehler: ' + me.message); return; }
     // Save per-Fach assignments
     const selects = document.querySelectorAll('#sz-faecher-list select');
     for (const sel of selects) {
       const fachName = sel.dataset.fach;
       const shId = sel.value || null;
-      // Upsert into klassen_faecher
       const { data: existing } = await db.from('klassen_faecher')
         .select('id').eq('schulklasse_id', klasseId).eq('fach_name', fachName).maybeSingle();
       if (existing) {
         await db.from('klassen_faecher').update({ schulhaus_id: shId }).eq('id', existing.id);
       } else if (shId) {
-        await db.from('klassen_faecher').insert({ schulklasse_id: klasseId, fach_name: fachName, schulhaus_id: shId });
+        const { error: ie } = await db.from('klassen_faecher')
+          .insert({ schulklasse_id: klasseId, fach_name: fachName, schulhaus_id: shId });
+        if (ie) console.error('Insert klassen_faecher:', ie.message);
       }
     }
-    // Update modus, clear class-level schulhaus
-    await db.from('schulklassen').update({ zuweisung_modus: 'faecher', schulhaus_id: null }).eq('id', klasseId);
   }
 
   closeSchulhausZuweisungModal();
-  if (currentSchulhausId) await loadKlassen(currentSchulhausId, document.getElementById('vb-klassen-title').textContent.replace('Klassen — ',''));
+  // Reload klassen table to reflect new status
+  const shTitle = document.getElementById('vb-klassen-title').textContent.replace('Klassen — ','');
+  if (currentSchulhausId) await loadKlassen(currentSchulhausId, shTitle);
   showToast('✅ Schulhaus-Zuweisung gespeichert');
 }
 
