@@ -557,6 +557,43 @@
         </div>
       </div>
 
+
+      <!-- ══ PANEL: SCHULSTUFEN-ADMIN ══ -->
+      <div id="panel-schulstufen-admin" class="panel">
+        <div class="panel-header">
+          <div>
+            <h1 class="panel-title">Schulstufen</h1>
+            <p class="panel-subtitle">Standard-Schulstufen und deren Fächer-Vorlagen verwalten</p>
+          </div>
+          <button class="btn-sm btn-accent-sm" onclick="openStufeAdminModal(null)">+ Neue Stufe</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:320px 1fr;gap:var(--space-6);margin-top:var(--space-6)">
+
+          <!-- Linke Spalte: Stufen-Liste -->
+          <div class="card" style="padding:0;overflow:hidden">
+            <div class="card-header" style="padding:var(--space-4)">
+              <span class="card-title">Stufen</span>
+              <span id="stufen-admin-count" class="badge badge-muted">0</span>
+            </div>
+            <div id="stufen-admin-list" style="display:flex;flex-direction:column">
+              <div style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">Lädt…</div>
+            </div>
+          </div>
+
+          <!-- Rechte Spalte: Fächer-Defaults der gewählten Stufe -->
+          <div class="card" style="padding:0;overflow:hidden">
+            <div class="card-header" style="padding:var(--space-4)">
+              <span class="card-title" id="faecher-defaults-title">Fächer-Defaults</span>
+              <button class="btn-sm btn-accent-sm" id="btn-add-default-fach" onclick="openFachDefaultModal(null)" style="display:none">+ Fach</button>
+            </div>
+            <div id="faecher-defaults-content" style="padding:var(--space-4)">
+              <div style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">← Stufe auswählen</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
     </div><!-- /content -->
   </div><!-- /main -->
 </div><!-- /view-app -->
@@ -1693,42 +1730,6 @@ async function deleteFachDefault(id, name) {
       <button class="btn-sm btn-accent-sm" onclick="saveFach()">Speichern</button>
     </div>
 
-      <!-- ══ PANEL: SCHULSTUFEN-ADMIN ══ -->
-      <div id="panel-schulstufen-admin" class="panel">
-        <div class="panel-header">
-          <div>
-            <h1 class="panel-title">Schulstufen</h1>
-            <p class="panel-subtitle">Standard-Schulstufen und deren Fächer-Vorlagen verwalten</p>
-          </div>
-          <button class="btn-sm btn-accent-sm" onclick="openStufeAdminModal(null)">+ Neue Stufe</button>
-        </div>
-
-        <div style="display:grid;grid-template-columns:320px 1fr;gap:var(--space-6);margin-top:var(--space-6)">
-
-          <!-- Linke Spalte: Stufen-Liste -->
-          <div class="card" style="padding:0;overflow:hidden">
-            <div class="card-header" style="padding:var(--space-4)">
-              <span class="card-title">Stufen</span>
-              <span id="stufen-admin-count" class="badge badge-muted">0</span>
-            </div>
-            <div id="stufen-admin-list" style="display:flex;flex-direction:column">
-              <div style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">Lädt…</div>
-            </div>
-          </div>
-
-          <!-- Rechte Spalte: Fächer-Defaults der gewählten Stufe -->
-          <div class="card" style="padding:0;overflow:hidden">
-            <div class="card-header" style="padding:var(--space-4)">
-              <span class="card-title" id="faecher-defaults-title">Fächer-Defaults</span>
-              <button class="btn-sm btn-accent-sm" id="btn-add-default-fach" onclick="openFachDefaultModal(null)" style="display:none">+ Fach</button>
-            </div>
-            <div id="faecher-defaults-content" style="padding:var(--space-4)">
-              <div style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">← Stufe auswählen</div>
-            </div>
-          </div>
-
-        </div>
-      </div>
   </div>
 </div>
 
