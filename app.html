@@ -1857,8 +1857,6 @@ async function loadLpWuensche() {
     document.getElementById('wunsch-pensum-max').value = w.pensum_max ?? 100;
     document.getElementById('wunsch-modus').value = w.modus || 'egal';
     document.getElementById('wunsch-max-klassen').value = w.max_klassen || '';
-    document.getElementById('wunsch-zeit-von').value = w.zeit_von ? w.zeit_von.substring(0,5) : '07:30';
-    document.getElementById('wunsch-zeit-bis').value = w.zeit_bis ? w.zeit_bis.substring(0,5) : '17:00';
     document.getElementById('wunsch-bemerkungen').value = w.bemerkungen || '';
     renderWunschHalbtage(w.halbtage || {}, w.halbtag_zeiten || {});
   } else {
@@ -2138,7 +2136,7 @@ async function saveLpWuensche() {
   if (error) { alert('Fehler: ' + error.message); return; }
   showToast('✅ Wünsche gespeichert');
   // Return to Verband detail
-  if (editTargetId) showPanel('verbände');
+  if (editTargetId) await showVbDetail(editTargetId);
 }
 
 
