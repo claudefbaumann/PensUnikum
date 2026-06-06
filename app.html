@@ -419,6 +419,18 @@
             </table>
           </div>
 
+          <!-- Fächer-Konfiguration -->
+          <div class="card" style="margin-top:var(--space-6)">
+            <div class="card-header">
+              <span class="card-title">Fächer-Konfiguration</span>
+              <button class="btn-sm btn-accent-sm" onclick="openFachModal()">+ Fach erfassen</button>
+            </div>
+            <table>
+              <thead><tr><th>Fach</th><th>Kürzel</th><th>Status</th><th></th></tr></thead>
+              <tbody id="vb-detail-faecher"></tbody>
+            </table>
+          </div>
+
           <!-- Schulhäuser -->
           <div class="card" style="margin-top:var(--space-6)">
             <div class="card-header">
@@ -822,6 +834,7 @@ function showVbDetail(id) {
       + '</div></div>';
   const initials = v.slName.split(' ').map(n => n[0]).join('');
   if(typeof loadSchulhaeuser === 'function') loadSchulhaeuser(id);
+  if(typeof loadVerbandFaecher === 'function') loadVerbandFaecher(id);
   document.getElementById('vb-klassen-card').style.display='none';
   // Schulleitung als erste Zeile + Demo-Lehrpersonen mit Modus
   const demoLP = [
@@ -1164,6 +1177,88 @@ async function savePerson(){
 }
 
 
+
+// ── FÄCHER-KONFIGURATION (pro Verband) ──
+function openFachModal(editId) {
+  document.getElementById('fach-edit-id').value = editId || '';
+  document.getElementById('fach-modal-title').textContent = editId ? 'Fach bearbeiten' : 'Fach erfassen';
+  if (!editId) {
+    document.getElementById('fach-name').value = '';
+    document.getElementById('fach-kuerzel').value = '';
+    document.getElementById('fach-aktiv').value = 'true';
+  } else {
+    const f = window._verband_faecher && window._verband_faecher.find(x => x.id === editId);
+    if (f) {
+      document.getElementById('fach-name').value = f.name || '';
+      document.getElementById('fach-kuerzel').value = f.kuerzel || '';
+      document.getElementById('fach-aktiv').value = f.aktiv ? 'true' : 'false';
+    }
+  }
+  document.getElementById('modal-fach').classList.add('active');
+}
+function closeFachModal() { document.getElementById('modal-fach').classList.remove('active'); }
+
+async function saveFach() {
+  const editId = document.getElementById('fach-edit-id').value;
+  const payload = {
+    name: document.getElementById('fach-name').value.trim(),
+    kuerzel: document.getElementById('fach-kuerzel').value.trim().toUpperCase() || null,
+    aktiv: document.getElementById('fach-aktiv').value === 'true',
+    verband_id: editTargetId
+  };
+  if (!payload.name) { alert('Bitte Fachname eingeben'); return; }
+  if (editId) {
+    const { error } = await db.from('verband_faecher').update(payload).eq('id', editId);
+    if (error) { alert('Fehler: ' + error.message); return; }
+  } else {
+    const { error } = await db.from('verband_faecher').insert(payload);
+    if (error) { alert('Fehler: ' + error.message); return; }
+  }
+  closeFachModal();
+  await loadVerbandFaecher(editTargetId);
+  showToast(editId ? '✅ Fach aktualisiert' : '✅ Fach erfasst');
+}
+
+async function deleteFach(id) {
+  const f = window._verband_faecher && window._verband_faecher.find(x => x.id === id);
+  const name = f ? f.name : 'Fach';
+  if (!confirm('Fach «' + name + '» wirklich löschen?')) return;
+  const { error } = await db.from('verband_faecher').delete().eq('id', id);
+  if (error) { alert('Fehler: ' + error.message); return; }
+  showToast('🗑 Fach «' + name + '» gelöscht');
+  await loadVerbandFaecher(editTargetId);
+}
+
+async function loadVerbandFaecher(verbandId) {
+  const { data, error } = await db.from('verband_faecher')
+    .select('id,name,kuerzel,aktiv')
+    .eq('verband_id', verbandId)
+    .order('reihenfolge').order('name');
+  if (error) { console.error(error); return; }
+  window._verband_faecher = data || [];
+  const tbody = document.getElementById('vb-detail-faecher');
+  if (!tbody) return;
+  if (!data || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--color-text-muted)">Noch keine Fächer erfasst</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map((f, i) => {
+    const statusBadge = f.aktiv
+      ? '<span class="badge badge-success">Aktiv</span>'
+      : '<span class="badge badge-muted">Inaktiv</span>';
+    return '<tr>'
+      + '<td><div class="avatar-cell"><div class="table-avatar ' + (i%2===1?'accent':'') + '" style="font-size:var(--text-xs)">'
+      + (f.kuerzel || f.name.substring(0,3).toUpperCase()) + '</div>'
+      + '<div class="cell-name">' + f.name + '</div></div></td>'
+      + '<td><span class="badge badge-muted">' + (f.kuerzel || '—') + '</span></td>'
+      + '<td>' + statusBadge + '</td>'
+      + '<td style="display:flex;gap:4px">'
+      + '<button class="btn-sm btn-outline-sm" onclick="openFachModal(\'' + f.id + '\')">✏️</button>'
+      + '<button class="btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="deleteFach(\'' + f.id + '\')">🗑</button>'
+      + '</td></tr>';
+  }).join('');
+}
+
 </script>
 
 
@@ -1239,6 +1334,28 @@ async function savePerson(){
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeKlasseModal()">Abbrechen</button>
       <button class="btn-sm btn-accent-sm" onclick="saveKlasse()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- FACH-MODAL -->
+<div class="modal-overlay" id="modal-fach">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="fach-modal-title">Fach erfassen</span>
+      <button class="icon-btn" onclick="closeFachModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body modal-grid">
+      <input type="hidden" id="fach-edit-id"/>
+      <div class="form-group" style="grid-column:1/-1"><label class="form-label">Fachname *</label><input class="form-input" id="fach-name" placeholder="z.B. Mathematik"/></div>
+      <div class="form-group"><label class="form-label">Kürzel</label><input class="form-input" id="fach-kuerzel" placeholder="z.B. MAT" maxlength="6"/></div>
+      <div class="form-group"><label class="form-label">Status</label>
+        <select class="form-input" id="fach-aktiv"><option value="true">Aktiv</option><option value="false">Inaktiv</option></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeFachModal()">Abbrechen</button>
+      <button class="btn-sm btn-accent-sm" onclick="saveFach()">Speichern</button>
     </div>
   </div>
 </div>
