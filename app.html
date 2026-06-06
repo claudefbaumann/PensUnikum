@@ -1318,7 +1318,8 @@ async function saveStufenAuswahl() {
       : (STUFEN_MASTER.find(s=>s.key===key)||{faecher:[]}).faecher.map((f,i)=>({name:f.name,kuerzel:f.kuerzel,reihenfolge:i}));
     const faecherInsert = faecherSrc.map((f,i) => ({
       verband_id: editTargetId, stufe_key: key, name: f.name, kuerzel: f.kuerzel,
-      reihenfolge: f.reihenfolge ?? i, prioritaet: f.prioritaet ?? 2
+      reihenfolge: f.reihenfolge ?? i, prioritaet: f.prioritaet ?? 2,
+      prioritaet_1: f.prioritaet_1 ?? null, prioritaet_2: f.prioritaet_2 ?? null
     }));
     if (faecherInsert.length) await db.from('verband_faecher').insert(faecherInsert);
   }
@@ -1379,7 +1380,7 @@ function renderStufenTabs() {
         + '<td><div class="avatar-cell"><div class="table-avatar ' + (i%2?'accent':'') + '" style="font-size:var(--text-xs)">' + (f.kuerzel||f.name.substring(0,3).toUpperCase()) + '</div>'
         + '<div class="cell-name">' + f.name + '</div></div></td>'
         + '<td><span class="badge badge-muted">' + (f.kuerzel||'—') + '</span></td>'
-        + '<td>'+(f.prioritaet===1?'🔵':f.prioritaet===3?'⚪':'🟡')+'</td>'
+        + '<td style="font-size:var(--text-xs);white-space:nowrap">'+(f.prioritaet===1?'🔵':f.prioritaet===3?'⚪':'🟡')+' '+(f.prioritaet_1?'<span title="Priorität 1">'+( f.prioritaet_1==='vormittag'?'🌅':'🌆')+'</span>':'')+' '+(f.prioritaet_2?'<span title="Priorität 2">'+(f.prioritaet_2==='vormittag'?'🌅':'🌆')+'</span>':'')+'</td>'
         + '<td style="display:flex;gap:4px">'
         + '<button class="btn-sm btn-outline-sm" onclick="openFachModal(\'' + f.id + '\',\'' + _aktive_stufe_key + '\')">✏️</button>'
         + '<button class="btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="deleteFach(\'' + f.id + '\')">🗑</button>'
@@ -1410,12 +1411,17 @@ async function openFachModal(editId, stufeKey) {
   if (!editId) {
     document.getElementById('fach-name').value = '';
     document.getElementById('fach-kuerzel').value = '';
+    document.getElementById('fach-prioritaet').value = '2';
+    document.getElementById('fach-prio1').value = '';
+    document.getElementById('fach-prio2').value = '';
   } else {
     const f = window._verband_faecher && window._verband_faecher.find(x => x.id === editId);
     if (f) {
       document.getElementById('fach-name').value = f.name || '';
       document.getElementById('fach-kuerzel').value = f.kuerzel || '';
       document.getElementById('fach-prioritaet').value = f.prioritaet||2;
+      document.getElementById('fach-prio1').value = f.prioritaet_1||'';
+      document.getElementById('fach-prio2').value = f.prioritaet_2||'';
     }
   }
   // Schnellauswahl
@@ -1473,7 +1479,9 @@ async function saveFach() {
     kuerzel: document.getElementById('fach-kuerzel').value.trim().toUpperCase() || null,
     verband_id: editTargetId,
     stufe_key: stufeKey,
-    prioritaet: parseInt(document.getElementById('fach-prioritaet').value)||2
+    prioritaet: parseInt(document.getElementById('fach-prioritaet').value)||2,
+    prioritaet_1: document.getElementById('fach-prio1').value||null,
+    prioritaet_2: document.getElementById('fach-prio2').value||null
   };
   if (!payload.name) { alert('Bitte Fachname eingeben'); return; }
   if (!payload.verband_id) { alert('Kein Verband ausgewählt – bitte Seite neu laden.'); return; }
@@ -1676,6 +1684,8 @@ function openFachDefaultModal(editId, stufeKey) {
       document.getElementById('fach-default-name').value = f.name || '';
       document.getElementById('fach-default-kuerzel').value = f.kuerzel || '';
       document.getElementById('fach-default-prioritaet').value = f.prioritaet||2;
+      document.getElementById('fach-default-prio1').value = f.prioritaet_1||'';
+      document.getElementById('fach-default-prio2').value = f.prioritaet_2||'';
     }
   } else {
     document.getElementById('fach-default-name').value = '';
@@ -1690,13 +1700,15 @@ async function saveFachDefault() {
   const sk     = document.getElementById('fach-default-stufe-key').value;
   const name   = document.getElementById('fach-default-name').value.trim();
   const kuerzel = document.getElementById('fach-default-kuerzel').value.trim().toUpperCase() || null;
-  const prioritaet = parseInt(document.getElementById('fach-default-prioritaet').value)||2;
+  const prioritaet  = parseInt(document.getElementById('fach-default-prioritaet').value)||2;
+  const prioritaet_1 = document.getElementById('fach-default-prio1').value||null;
+  const prioritaet_2 = document.getElementById('fach-default-prio2').value||null;
   if (!name) { alert('Bitte Fachname eingeben'); return; }
   if (editId) {
-    const { error } = await db.from('faecher_defaults').update({ name, kuerzel, prioritaet }).eq('id', editId);
+    const { error } = await db.from('faecher_defaults').update({ name, kuerzel, prioritaet, prioritaet_1, prioritaet_2 }).eq('id', editId);
     if (error) { alert('Fehler: ' + error.message); return; }
   } else {
-    const { error } = await db.from('faecher_defaults').insert({ stufe_key: sk, name, kuerzel, prioritaet });
+    const { error } = await db.from('faecher_defaults').insert({ stufe_key: sk, name, kuerzel, prioritaet, prioritaet_1, prioritaet_2 });
     if (error) { alert('Fehler: ' + error.message); return; }
   }
   closeFachDefaultModal();
@@ -1979,7 +1991,21 @@ async function saveLpWuensche() {
       <div style="border-top:1px solid var(--color-border);padding-top:var(--space-4);display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
         <div class="form-group" style="grid-column:1/-1"><label class="form-label">Fachname *</label><input class="form-input" id="fach-name" placeholder="z.B. Mathematik"/></div>
         <div class="form-group"><label class="form-label">Kürzel</label><input class="form-input" id="fach-kuerzel" placeholder="z.B. MA" maxlength="6"/></div>
-        <div class="form-group"><label class="form-label">Priorität</label><select class="form-input" id="fach-prioritaet"><option value="1">🔵 1 – Kernfach</option><option value="2" selected>🟡 2 – Ergänzungsfach</option><option value="3">⚪ 3 – Wahlfach</option></select></div>
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">Facheinstufung</label><select class="form-input" id="fach-prioritaet"><option value="1">🔵 Kernfach</option><option value="2" selected>🟡 Ergänzungsfach</option><option value="3">⚪ Wahlfach</option></select></div>
+        <div class="form-group"><label class="form-label">Priorität 1 <span style="font-weight:400;color:var(--color-text-muted)">(Tageszeit)</span></label>
+          <select class="form-input" id="fach-prio1">
+            <option value="">— keine Angabe</option>
+            <option value="vormittag">🌅 Vormittag</option>
+            <option value="nachmittag">🌆 Nachmittag</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Priorität 2 <span style="font-weight:400;color:var(--color-text-muted)">(Tageszeit)</span></label>
+          <select class="form-input" id="fach-prio2">
+            <option value="">— keine Angabe</option>
+            <option value="vormittag">🌅 Vormittag</option>
+            <option value="nachmittag">🌆 Nachmittag</option>
+          </select>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -2044,7 +2070,21 @@ async function saveLpWuensche() {
       <input type="hidden" id="fach-default-stufe-key"/>
       <div class="form-group" style="grid-column:1/-1"><label class="form-label">Fachname *</label><input class="form-input" id="fach-default-name" placeholder="z.B. Mathematik"/></div>
       <div class="form-group"><label class="form-label">Kürzel</label><input class="form-input" id="fach-default-kuerzel" placeholder="z.B. MA" maxlength="6"/></div>
-      <div class="form-group"><label class="form-label">Priorität</label><select class="form-input" id="fach-default-prioritaet"><option value="1">🔵 1 – Kernfach</option><option value="2" selected>🟡 2 – Ergänzungsfach</option><option value="3">⚪ 3 – Wahlfach</option></select></div>
+      <div class="form-group" style="grid-column:1/-1"><label class="form-label">Facheinstufung</label><select class="form-input" id="fach-default-prioritaet"><option value="1">🔵 Kernfach</option><option value="2" selected>🟡 Ergänzungsfach</option><option value="3">⚪ Wahlfach</option></select></div>
+      <div class="form-group"><label class="form-label">Priorität 1 <span style="font-weight:400;color:var(--color-text-muted)">(Tageszeit)</span></label>
+        <select class="form-input" id="fach-default-prio1">
+          <option value="">— keine Angabe</option>
+          <option value="vormittag">🌅 Vormittag</option>
+          <option value="nachmittag">🌆 Nachmittag</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Priorität 2 <span style="font-weight:400;color:var(--color-text-muted)">(Tageszeit)</span></label>
+        <select class="form-input" id="fach-default-prio2">
+          <option value="">— keine Angabe</option>
+          <option value="vormittag">🌅 Vormittag</option>
+          <option value="nachmittag">🌆 Nachmittag</option>
+        </select>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeFachDefaultModal()">Abbrechen</button>
