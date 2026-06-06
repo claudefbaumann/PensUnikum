@@ -568,6 +568,7 @@ const ROLES = {
       {id:'dashboard',label:'Dashboard',icon:'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'},
       {id:'verbände',label:'Schulverbände',icon:'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'},
       {id:'benutzer',label:'Alle Benutzer',icon:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'},
+      {id:'schulstufen-admin',label:'Schulstufen',icon:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>'},
     ]},
   ]},
   verband:{ label:'Verbandsleitung', user:'P. Gerber', initials:'PG', nav:[
@@ -936,6 +937,7 @@ function showPanel(id){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   const panel = document.getElementById('panel-'+id);
   if(panel) panel.classList.add('active');
+  if(id === 'schulstufen-admin') loadStufenadmin();
   const navItem = document.querySelector('[data-panel="'+id+'"]');
   if(navItem){ navItem.classList.add('active'); document.getElementById('topbar-title').textContent = navItem.textContent.trim(); }
   activePanel = id;
@@ -1203,10 +1205,19 @@ let _aktive_stufe_key = null;
 let _verband_stufen = [];
 
 // ── Schulstufen-Modal ──
-function openStufenModal() {
+async function openStufenModal() {
   const bereits = _verband_stufen.map(s => s.stufe_key);
   const el = document.getElementById('stufen-auswahl');
-  el.innerHTML = STUFEN_MASTER.map(s => {
+  // Use DB master if loaded, else fallback to hardcoded
+  const masterList = (_admin_stufen && _admin_stufen.length)
+    ? _admin_stufen.map(s => ({key:s.stufe_key, label:s.stufe_label, reihenfolge:s.reihenfolge}))
+    : STUFEN_MASTER.map(s => ({key:s.key, label:s.label, reihenfolge:s.reihenfolge}));
+  // Preload admin stufen from DB if not yet loaded
+  if (!_admin_stufen || !_admin_stufen.length) {
+    const { data } = await db.from('schulstufen_master').select('*').order('reihenfolge');
+    if (data) { _admin_stufen = data; masterList.splice(0, masterList.length, ...data.map(s=>({key:s.stufe_key,label:s.stufe_label,reihenfolge:s.reihenfolge}))); }
+  }
+  el.innerHTML = masterList.map(s => {
     const vorhanden = bereits.includes(s.key);
     return '<label style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);cursor:' + (vorhanden?'default':'pointer') + ';background:' + (vorhanden?'var(--color-surface-offset)':'var(--color-surface)') + '">'
       + '<input type="checkbox" value="' + s.key + '"' + (vorhanden?' disabled checked':'') + ' style="accent-color:var(--color-primary)">'
@@ -1222,17 +1233,22 @@ async function saveStufenAuswahl() {
   if (!checked.length) { closeStufenModal(); return; }
   for (const cb of checked) {
     const key = cb.value;
-    const master = STUFEN_MASTER.find(s => s.key === key);
-    if (!master) continue;
+    // Load from DB master
+    const masterRow = _admin_stufen.find(s => s.stufe_key === key) || STUFEN_MASTER.find(s => s.key === key);
+    const stufeLabel = masterRow ? (masterRow.stufe_label || masterRow.label) : key;
+    const stufeReihenfolge = masterRow ? (masterRow.reihenfolge || 99) : 99;
     const { data: stufenRow, error: se } = await db.from('verband_schulstufen')
-      .insert({ verband_id: editTargetId, stufe_key: key, stufe_label: master.label, reihenfolge: master.reihenfolge })
+      .insert({ verband_id: editTargetId, stufe_key: key, stufe_label: stufeLabel, reihenfolge: stufeReihenfolge })
       .select().single();
     if (se) { console.error(se); continue; }
-    // Insert default Fächer
-    const faecherInsert = master.faecher.map((f,i) => ({
-      verband_id: editTargetId, stufe_key: key, name: f.name, kuerzel: f.kuerzel, reihenfolge: i
+    // Fächer aus DB-Defaults laden
+    const { data: dbFaecher } = await db.from('faecher_defaults').select('name,kuerzel,reihenfolge').eq('stufe_key', key).order('reihenfolge');
+    const faecherSrc = (dbFaecher && dbFaecher.length) ? dbFaecher
+      : (STUFEN_MASTER.find(s=>s.key===key)||{faecher:[]}).faecher.map((f,i)=>({name:f.name,kuerzel:f.kuerzel,reihenfolge:i}));
+    const faecherInsert = faecherSrc.map((f,i) => ({
+      verband_id: editTargetId, stufe_key: key, name: f.name, kuerzel: f.kuerzel, reihenfolge: f.reihenfolge ?? i
     }));
-    await db.from('verband_faecher').insert(faecherInsert);
+    if (faecherInsert.length) await db.from('verband_faecher').insert(faecherInsert);
   }
   closeStufenModal();
   await loadVerbandSchulstufen(editTargetId);
@@ -1391,6 +1407,177 @@ async function loadVerbandFaecher(verbandId) {
   }).join('');
 }
 
+
+
+// ══ ADMIN: SCHULSTUFEN-MASTER ══
+
+let _admin_stufen = [];
+let _admin_faecher_defaults = [];
+let _admin_selected_stufe_key = null;
+
+// ── Load & render ──
+async function loadStufenadmin() {
+  const { data: stufen } = await db.from('schulstufen_master').select('*').order('reihenfolge');
+  _admin_stufen = stufen || [];
+  document.getElementById('stufen-admin-count').textContent = _admin_stufen.length;
+  renderStufenadminList();
+  if (_admin_selected_stufe_key) loadFaecherDefaults(_admin_selected_stufe_key);
+}
+
+function renderStufenadminList() {
+  const el = document.getElementById('stufen-admin-list');
+  if (!_admin_stufen.length) {
+    el.innerHTML = '<div style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">Keine Stufen erfasst</div>';
+    return;
+  }
+  el.innerHTML = _admin_stufen.map(s =>
+    '<div onclick="selectAdminStufe(\'' + s.stufe_key + '\')" style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);cursor:pointer;border-bottom:1px solid var(--color-border);transition:background var(--transition-interactive);background:' + (_admin_selected_stufe_key === s.stufe_key ? 'var(--color-primary-highlight)' : 'transparent') + '"'
+    + ' onmouseenter="this.style.background=\'' + (_admin_selected_stufe_key === s.stufe_key ? 'var(--color-primary-highlight)' : 'var(--color-surface-offset)') + '\'"'
+    + ' onmouseleave="this.style.background=\'' + (_admin_selected_stufe_key === s.stufe_key ? 'var(--color-primary-highlight)' : 'transparent') + '\'">'
+    + '<div style="flex:1;min-width:0">'
+    + '<div style="font-size:var(--text-sm);font-weight:600;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + s.stufe_label + '</div>'
+    + '<div style="font-size:var(--text-xs);color:var(--color-text-muted)">' + s.stufe_key + '</div>'
+    + '</div>'
+    + '<div style="display:flex;gap:4px;flex-shrink:0">'
+    + '<button class="btn-sm btn-outline-sm" onclick="event.stopPropagation();openStufeAdminModal(\'' + s.id + '\')" style="padding:2px 8px;font-size:11px">✏️</button>'
+    + '<button class="btn-danger btn-sm" onclick="event.stopPropagation();deleteStufeAdmin(\'' + s.id + '\',\'' + s.stufe_key + '\',\'' + s.stufe_label.replace(/'/g,"\\'") + '\')" style="padding:2px 8px;font-size:11px">🗑</button>'
+    + '</div></div>'
+  ).join('');
+}
+
+async function selectAdminStufe(key) {
+  _admin_selected_stufe_key = key;
+  renderStufenadminList();
+  await loadFaecherDefaults(key);
+}
+
+async function loadFaecherDefaults(stufeKey) {
+  const stufe = _admin_stufen.find(s => s.stufe_key === stufeKey);
+  const { data: faecher } = await db.from('faecher_defaults').select('*').eq('stufe_key', stufeKey).order('reihenfolge').order('name');
+  _admin_faecher_defaults = faecher || [];
+  const titleEl = document.getElementById('faecher-defaults-title');
+  const btnEl   = document.getElementById('btn-add-default-fach');
+  const el      = document.getElementById('faecher-defaults-content');
+  if (titleEl) titleEl.textContent = stufe ? 'Fächer: ' + stufe.stufe_label : 'Fächer-Defaults';
+  if (btnEl) { btnEl.style.display = 'inline-flex'; btnEl.onclick = () => openFachDefaultModal(null, stufeKey); }
+  if (!faecher || !faecher.length) {
+    el.innerHTML = '<div style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">Keine Fächer-Defaults – klicke «+ Fach»</div>';
+    return;
+  }
+  el.innerHTML = '<table><thead><tr><th>#</th><th>Fach</th><th>Kürzel</th><th></th></tr></thead><tbody>'
+    + faecher.map((f,i) =>
+        '<tr>'
+        + '<td style="color:var(--color-text-muted);font-size:var(--text-xs)">' + (f.reihenfolge ?? i) + '</td>'
+        + '<td>' + f.name + '</td>'
+        + '<td><span class="badge badge-muted">' + (f.kuerzel || '—') + '</span></td>'
+        + '<td style="display:flex;gap:4px">'
+        + '<button class="btn-sm btn-outline-sm" onclick="openFachDefaultModal(\'' + f.id + '\',\'' + stufeKey + '\')" style="padding:2px 8px;font-size:11px">✏️</button>'
+        + '<button class="btn-danger btn-sm" onclick="deleteFachDefault(\'' + f.id + '\',\'' + f.name.replace(/'/g,"\\'") + '\')" style="padding:2px 8px;font-size:11px">🗑</button>'
+        + '</td></tr>'
+      ).join('')
+    + '</tbody></table>';
+}
+
+// ── Stufe CRUD ──
+function openStufeAdminModal(editId) {
+  document.getElementById('stufe-admin-edit-id').value = editId || '';
+  document.getElementById('stufe-admin-modal-title').textContent = editId ? 'Schulstufe bearbeiten' : 'Neue Schulstufe';
+  if (editId) {
+    const s = _admin_stufen.find(x => x.id === editId);
+    if (s) {
+      document.getElementById('stufe-admin-label').value = s.stufe_label || '';
+      document.getElementById('stufe-admin-key').value = s.stufe_key || '';
+      document.getElementById('stufe-admin-reihenfolge').value = s.reihenfolge ?? '';
+    }
+  } else {
+    document.getElementById('stufe-admin-label').value = '';
+    document.getElementById('stufe-admin-key').value = '';
+    document.getElementById('stufe-admin-reihenfolge').value = (_admin_stufen.length + 1).toString();
+  }
+  document.getElementById('modal-stufe-admin').classList.add('active');
+}
+function closeStufeAdminModal() { document.getElementById('modal-stufe-admin').classList.remove('active'); }
+
+async function saveStufeAdmin() {
+  const editId   = document.getElementById('stufe-admin-edit-id').value;
+  const label    = document.getElementById('stufe-admin-label').value.trim();
+  const key      = document.getElementById('stufe-admin-key').value.trim().toLowerCase().replace(/\s+/g,'_');
+  const reihenfolge = parseInt(document.getElementById('stufe-admin-reihenfolge').value) || 99;
+  if (!label || !key) { alert('Bitte Bezeichnung und Schlüssel eingeben'); return; }
+  if (editId) {
+    const { error } = await db.from('schulstufen_master').update({ stufe_label: label, stufe_key: key, reihenfolge }).eq('id', editId);
+    if (error) { alert('Fehler: ' + error.message); return; }
+  } else {
+    const { error } = await db.from('schulstufen_master').insert({ stufe_key: key, stufe_label: label, reihenfolge });
+    if (error) { alert('Fehler: ' + error.message); return; }
+  }
+  closeStufeAdminModal();
+  await loadStufenadmin();
+  showToast(editId ? '✅ Schulstufe aktualisiert' : '✅ Neue Schulstufe erfasst');
+}
+
+async function deleteStufeAdmin(id, key, label) {
+  if (!confirm('Schulstufe «' + label + '» und alle Fächer-Defaults löschen?\n\nAchtung: Bereits bei Verbänden erfasste Stufen bleiben unberührt.')) return;
+  await db.from('faecher_defaults').delete().eq('stufe_key', key);
+  await db.from('schulstufen_master').delete().eq('id', id);
+  if (_admin_selected_stufe_key === key) {
+    _admin_selected_stufe_key = null;
+    document.getElementById('faecher-defaults-content').innerHTML = '<div style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">← Stufe auswählen</div>';
+    document.getElementById('faecher-defaults-title').textContent = 'Fächer-Defaults';
+    const btnEl = document.getElementById('btn-add-default-fach');
+    if (btnEl) btnEl.style.display = 'none';
+  }
+  await loadStufenadmin();
+  showToast('🗑 Schulstufe gelöscht');
+}
+
+// ── Fach-Default CRUD ──
+function openFachDefaultModal(editId, stufeKey) {
+  document.getElementById('fach-default-edit-id').value = editId || '';
+  document.getElementById('fach-default-stufe-key').value = stufeKey || _admin_selected_stufe_key || '';
+  document.getElementById('fach-default-modal-title').textContent = editId ? 'Fach-Default bearbeiten' : 'Fach-Default erfassen';
+  if (editId) {
+    const f = _admin_faecher_defaults.find(x => x.id === editId);
+    if (f) {
+      document.getElementById('fach-default-name').value = f.name || '';
+      document.getElementById('fach-default-kuerzel').value = f.kuerzel || '';
+      document.getElementById('fach-default-reihenfolge').value = f.reihenfolge ?? '';
+    }
+  } else {
+    document.getElementById('fach-default-name').value = '';
+    document.getElementById('fach-default-kuerzel').value = '';
+    document.getElementById('fach-default-reihenfolge').value = _admin_faecher_defaults.length.toString();
+  }
+  document.getElementById('modal-fach-default').classList.add('active');
+}
+function closeFachDefaultModal() { document.getElementById('modal-fach-default').classList.remove('active'); }
+
+async function saveFachDefault() {
+  const editId = document.getElementById('fach-default-edit-id').value;
+  const sk     = document.getElementById('fach-default-stufe-key').value;
+  const name   = document.getElementById('fach-default-name').value.trim();
+  const kuerzel = document.getElementById('fach-default-kuerzel').value.trim().toUpperCase() || null;
+  const reihenfolge = parseInt(document.getElementById('fach-default-reihenfolge').value) || 0;
+  if (!name) { alert('Bitte Fachname eingeben'); return; }
+  if (editId) {
+    const { error } = await db.from('faecher_defaults').update({ name, kuerzel, reihenfolge }).eq('id', editId);
+    if (error) { alert('Fehler: ' + error.message); return; }
+  } else {
+    const { error } = await db.from('faecher_defaults').insert({ stufe_key: sk, name, kuerzel, reihenfolge });
+    if (error) { alert('Fehler: ' + error.message); return; }
+  }
+  closeFachDefaultModal();
+  await loadFaecherDefaults(sk);
+  showToast(editId ? '✅ Fach aktualisiert' : '✅ Fach erfasst');
+}
+
+async function deleteFachDefault(id, name) {
+  if (!confirm('Fach «' + name + '» aus den Defaults löschen?')) return;
+  await db.from('faecher_defaults').delete().eq('id', id);
+  await loadFaecherDefaults(_admin_selected_stufe_key);
+  showToast('🗑 Fach «' + name + '» gelöscht');
+}
+
 </script>
 
 
@@ -1505,6 +1692,43 @@ async function loadVerbandFaecher(verbandId) {
       <button class="btn-cancel" onclick="closeFachModal()">Abbrechen</button>
       <button class="btn-sm btn-accent-sm" onclick="saveFach()">Speichern</button>
     </div>
+
+      <!-- ══ PANEL: SCHULSTUFEN-ADMIN ══ -->
+      <div id="panel-schulstufen-admin" class="panel">
+        <div class="panel-header">
+          <div>
+            <h1 class="panel-title">Schulstufen</h1>
+            <p class="panel-subtitle">Standard-Schulstufen und deren Fächer-Vorlagen verwalten</p>
+          </div>
+          <button class="btn-sm btn-accent-sm" onclick="openStufeAdminModal(null)">+ Neue Stufe</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:320px 1fr;gap:var(--space-6);margin-top:var(--space-6)">
+
+          <!-- Linke Spalte: Stufen-Liste -->
+          <div class="card" style="padding:0;overflow:hidden">
+            <div class="card-header" style="padding:var(--space-4)">
+              <span class="card-title">Stufen</span>
+              <span id="stufen-admin-count" class="badge badge-muted">0</span>
+            </div>
+            <div id="stufen-admin-list" style="display:flex;flex-direction:column">
+              <div style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">Lädt…</div>
+            </div>
+          </div>
+
+          <!-- Rechte Spalte: Fächer-Defaults der gewählten Stufe -->
+          <div class="card" style="padding:0;overflow:hidden">
+            <div class="card-header" style="padding:var(--space-4)">
+              <span class="card-title" id="faecher-defaults-title">Fächer-Defaults</span>
+              <button class="btn-sm btn-accent-sm" id="btn-add-default-fach" onclick="openFachDefaultModal(null)" style="display:none">+ Fach</button>
+            </div>
+            <div id="faecher-defaults-content" style="padding:var(--space-4)">
+              <div style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">← Stufe auswählen</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
   </div>
 </div>
 
@@ -1530,5 +1754,46 @@ async function loadVerbandFaecher(verbandId) {
   </div>
 </div>
 
+
+<!-- STUFE-ADMIN-MODAL -->
+<div class="modal-overlay" id="modal-stufe-admin">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="stufe-admin-modal-title">Neue Schulstufe</span>
+      <button class="icon-btn" onclick="closeStufeAdminModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body modal-grid">
+      <input type="hidden" id="stufe-admin-edit-id"/>
+      <div class="form-group" style="grid-column:1/-1"><label class="form-label">Bezeichnung *</label><input class="form-input" id="stufe-admin-label" placeholder="z.B. Unterstufe – 3. Schuljahr"/></div>
+      <div class="form-group"><label class="form-label">Schlüssel (Key) *</label><input class="form-input" id="stufe-admin-key" placeholder="z.B. us3" maxlength="12"/></div>
+      <div class="form-group"><label class="form-label">Reihenfolge</label><input class="form-input" type="number" id="stufe-admin-reihenfolge" placeholder="z.B. 5" min="1"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeStufeAdminModal()">Abbrechen</button>
+      <button class="btn-sm btn-accent-sm" onclick="saveStufeAdmin()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- FACH-DEFAULT-MODAL -->
+<div class="modal-overlay" id="modal-fach-default">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="fach-default-modal-title">Fach-Default erfassen</span>
+      <button class="icon-btn" onclick="closeFachDefaultModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body modal-grid">
+      <input type="hidden" id="fach-default-edit-id"/>
+      <input type="hidden" id="fach-default-stufe-key"/>
+      <div class="form-group" style="grid-column:1/-1"><label class="form-label">Fachname *</label><input class="form-input" id="fach-default-name" placeholder="z.B. Mathematik"/></div>
+      <div class="form-group"><label class="form-label">Kürzel</label><input class="form-input" id="fach-default-kuerzel" placeholder="z.B. MA" maxlength="6"/></div>
+      <div class="form-group"><label class="form-label">Reihenfolge</label><input class="form-input" type="number" id="fach-default-reihenfolge" placeholder="0" min="0"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeFachDefaultModal()">Abbrechen</button>
+      <button class="btn-sm btn-accent-sm" onclick="saveFachDefault()">Speichern</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
