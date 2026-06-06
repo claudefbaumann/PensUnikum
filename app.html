@@ -450,7 +450,7 @@
               <button class="btn-sm btn-accent-sm" onclick="openKlasseModal()">+ Klasse erfassen</button>
             </div>
             <table>
-              <thead><tr><th>Klasse</th><th>Stufe</th><th>Schuljahr</th><th>Lektionen</th><th></th></tr></thead>
+              <thead><tr><th>Klasse</th><th>Stufe</th><th>Schuljahr</th><th>Schulhaus-Zuweisung</th><th></th></tr></thead>
               <tbody id="vb-detail-klassen"></tbody>
             </table>
           </div>
@@ -1143,7 +1143,7 @@ async function loadKlassen(schulhausId, schulhausName) {
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   const tbody = document.getElementById('vb-detail-klassen');
   tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--color-text-muted)">Lädt…</td></tr>';
-  const { data, error } = await db.from('schulklassen').select('id,bezeichnung,stufe,schuljahr').eq('schulhaus_id', schulhausId).order('bezeichnung');
+  const { data, error } = await db.from('schulklassen').select('id,bezeichnung,stufe,schuljahr,schulhaus_id,zuweisung_modus').eq('schulhaus_id', schulhausId).order('bezeichnung');
   if (error) { console.error(error); return; }
   window._klassen = data || [];
   if (!data || data.length === 0) {
@@ -1158,10 +1158,7 @@ async function loadKlassen(schulhausId, schulhausName) {
       + '<div class="cell-name">' + k.bezeichnung + '</div></div></td>'
       + '<td><span class="badge badge-muted">' + stufe + '</span></td>'
       + '<td>' + jahr + '</td>'
-      + '<td>—</td>'
-      + '<td style="display:flex;gap:4px">'
-      + '<button class="btn-sm btn-outline-sm" onclick="openKlasseModal(\''+k.id+'\')">✏️</button>'
-      + '<button class="btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="deleteKlasse(\''+k.id+'\',\''+k.bezeichnung+'\')">🗑</button>'
+      + '<td><button class="btn-sm btn-outline-sm" onclick="openSchulhausZuweisungModal(\''+k.id+'\',\''+encodeURIComponent(k.bezeichnung)+'\')" style="font-size:var(--text-xs)">' + (k.zuweisung_modus==='faecher' ? '🏫 Fachweise' : (k.schulhaus_id ? '🏫 Ganze Klasse' : '— zuordnen')) + '</button></td>'      + '<td style="display:flex;gap:4px">'      + '<button class="btn-sm btn-outline-sm" onclick="openKlasseModal(\''+k.id+'\')">✏️</button>'      + '<button class="btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="deleteKlasse(\''+k.id+'\',\''+k.bezeichnung+'\')">🗑</button>'
       + '</td></tr>';
   }).join('');
 }
@@ -1886,6 +1883,153 @@ async function saveLpWuensche() {
   showToast('✅ Wünsche gespeichert');
 }
 
+
+// ══ SCHULHAUS ZUWEISUNG ══
+let _sz_modus = 'ganz';
+let _sz_klasse_faecher = [];
+let _sz_schulhaeuser = [];
+
+async function openSchulhausZuweisungModal(klasseId, bezeichnungEncoded) {
+  const bezeichnung = decodeURIComponent(bezeichnungEncoded);
+  document.getElementById('sz-klasse-id').value = klasseId;
+  document.getElementById('sz-modal-title').textContent = 'Schulhaus — ' + bezeichnung;
+
+  // Load Schulhäuser for this Verband
+  const { data: shList } = await db.from('schulhaeuser')
+    .select('id,name').eq('verband_id', editTargetId).order('name');
+  _sz_schulhaeuser = shList || [];
+
+  // Fill Schulhaus selects
+  const shOptions = '<option value="">— Schulhaus wählen</option>' +
+    _sz_schulhaeuser.map(sh => '<option value="'+sh.id+'">'+sh.name+'</option>').join('');
+  document.getElementById('sz-schulhaus-ganz').innerHTML = shOptions;
+
+  // Load current Klasse data
+  const { data: kl } = await db.from('schulklassen')
+    .select('schulhaus_id,zuweisung_modus,stufe').eq('id', klasseId).maybeSingle();
+
+  const modus = kl?.zuweisung_modus || 'ganz';
+  _sz_modus = modus;
+  setSzModusUI(modus);
+
+  if (kl?.schulhaus_id) {
+    document.getElementById('sz-schulhaus-ganz').value = kl.schulhaus_id;
+  }
+
+  // Load Fächer for this Klasse's Stufe
+  if (kl?.stufe) {
+    const { data: faecher } = await db.from('verband_faecher')
+      .select('id,name,kuerzel,prioritaet').eq('verband_id', editTargetId).eq('stufe_key', kl.stufe).order('name');
+    _sz_klasse_faecher = faecher || [];
+  } else {
+    _sz_klasse_faecher = [];
+  }
+
+  // Load existing per-Fach assignments
+  const { data: kf } = await db.from('klassen_faecher')
+    .select('fach_name,schulhaus_id').eq('schulklasse_id', klasseId);
+  const fachShMap = {};
+  (kf || []).forEach(f => { fachShMap[f.fach_name] = f.schulhaus_id; });
+
+  // Render Fächer list
+  const list = document.getElementById('sz-faecher-list');
+  if (!_sz_klasse_faecher.length) {
+    list.innerHTML = '<p style="color:var(--color-text-muted);font-size:var(--text-sm)">Keine Fächer für diese Stufe erfasst.</p>';
+  } else {
+    list.innerHTML = _sz_klasse_faecher.map(f => {
+      const prioIcon = f.prioritaet===1?'🔵':f.prioritaet===3?'⚪':'🟡';
+      const selOptions = '<option value="">— Schulhaus wählen</option>' +
+        _sz_schulhaeuser.map(sh =>
+          '<option value="'+sh.id+'"'+(fachShMap[f.name]===sh.id?' selected':'')+'>'+sh.name+'</option>'
+        ).join('');
+      return '<div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-3);background:var(--color-surface-offset);border-radius:var(--radius-md)">'+
+        '<span style="font-size:var(--text-sm)">'+prioIcon+' '+(f.kuerzel?'<b>'+f.kuerzel+'</b> ':'')+'<span>'+f.name+'</span></span>'+
+        '<select class="form-input" data-fach="'+f.name+'" style="width:160px;font-size:var(--text-xs)">'+selOptions+'</select>'+
+        '</div>';
+    }).join('');
+  }
+
+  document.getElementById('modal-schulhaus-zuweisung').classList.add('active');
+}
+
+function setSzModus(modus) {
+  if (modus === 'faecher' && _sz_modus === 'ganz') {
+    const shId = document.getElementById('sz-schulhaus-ganz').value;
+    const shName = shId ? _sz_schulhaeuser.find(s=>s.id===shId)?.name : '';
+    const msg = shId
+      ? 'Auf "Einzelne Fächer" wechseln? Alle Fächer werden auf "'+shName+'" vorgesetzt.'
+      : 'Auf "Einzelne Fächer" wechseln?';
+    if (!confirm(msg)) return;
+    // Pre-fill all Fach selects with current Schulhaus
+    if (shId) {
+      document.querySelectorAll('#sz-faecher-list select').forEach(sel => { sel.value = shId; });
+    }
+  }
+  if (modus === 'ganz' && _sz_modus === 'faecher') {
+    if (!confirm('Zurück zu "Ganze Klasse"? Die fachweisen Zuweisungen werden gelöscht.')) return;
+  }
+  _sz_modus = modus;
+  setSzModusUI(modus);
+}
+
+function setSzModusUI(modus) {
+  const btnGanz    = document.getElementById('sz-btn-ganz');
+  const btnFaecher = document.getElementById('sz-btn-faecher');
+  const secGanz    = document.getElementById('sz-ganz-section');
+  const secFaecher = document.getElementById('sz-faecher-section');
+  if (modus === 'ganz') {
+    btnGanz.style.cssText    = 'flex:1;padding:var(--space-3);border-radius:var(--radius-md);border:2px solid var(--color-primary);background:var(--color-primary);color:#fff;font-weight:600;cursor:pointer;transition:all var(--transition-interactive)';
+    btnFaecher.style.cssText = 'flex:1;padding:var(--space-3);border-radius:var(--radius-md);border:2px solid var(--color-border);background:var(--color-surface);font-weight:600;cursor:pointer;transition:all var(--transition-interactive)';
+    secGanz.style.display    = 'block';
+    secFaecher.style.display = 'none';
+  } else {
+    btnGanz.style.cssText    = 'flex:1;padding:var(--space-3);border-radius:var(--radius-md);border:2px solid var(--color-border);background:var(--color-surface);font-weight:600;cursor:pointer;transition:all var(--transition-interactive)';
+    btnFaecher.style.cssText = 'flex:1;padding:var(--space-3);border-radius:var(--radius-md);border:2px solid var(--color-primary);background:var(--color-primary);color:#fff;font-weight:600;cursor:pointer;transition:all var(--transition-interactive)';
+    secGanz.style.display    = 'none';
+    secFaecher.style.display = 'block';
+  }
+}
+
+async function saveSchulhausZuweisung() {
+  const klasseId = document.getElementById('sz-klasse-id').value;
+  if (!klasseId) return;
+
+  if (_sz_modus === 'ganz') {
+    const shId = document.getElementById('sz-schulhaus-ganz').value || null;
+    // Update schulklassen
+    const { error } = await db.from('schulklassen')
+      .update({ schulhaus_id: shId, zuweisung_modus: 'ganz' }).eq('id', klasseId);
+    if (error) { alert('Fehler: ' + error.message); return; }
+    // Delete any per-Fach assignments
+    await db.from('klassen_faecher').update({ schulhaus_id: null }).eq('schulklasse_id', klasseId);
+  } else {
+    // Save per-Fach assignments
+    const selects = document.querySelectorAll('#sz-faecher-list select');
+    for (const sel of selects) {
+      const fachName = sel.dataset.fach;
+      const shId = sel.value || null;
+      // Upsert into klassen_faecher
+      const { data: existing } = await db.from('klassen_faecher')
+        .select('id').eq('schulklasse_id', klasseId).eq('fach_name', fachName).maybeSingle();
+      if (existing) {
+        await db.from('klassen_faecher').update({ schulhaus_id: shId }).eq('id', existing.id);
+      } else if (shId) {
+        await db.from('klassen_faecher').insert({ schulklasse_id: klasseId, fach_name: fachName, schulhaus_id: shId });
+      }
+    }
+    // Update modus, clear class-level schulhaus
+    await db.from('schulklassen').update({ zuweisung_modus: 'faecher', schulhaus_id: null }).eq('id', klasseId);
+  }
+
+  closeSchulhausZuweisungModal();
+  if (currentSchulhausId) await loadKlassen(currentSchulhausId, document.getElementById('vb-klassen-title').textContent.replace('Klassen — ',''));
+  showToast('✅ Schulhaus-Zuweisung gespeichert');
+}
+
+function closeSchulhausZuweisungModal() {
+  document.getElementById('modal-schulhaus-zuweisung').classList.remove('active');
+}
+
 </script>
 
 
@@ -2103,5 +2247,54 @@ async function saveLpWuensche() {
     </div>
   </div>
 </div>
+
+<!-- ══ MODAL: SCHULHAUS ZUWEISUNG ══ -->
+<div class="modal-overlay" id="modal-schulhaus-zuweisung">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <span class="modal-title" id="sz-modal-title">Schulhaus-Zuweisung</span>
+      <button class="icon-btn" onclick="closeSchulhausZuweisungModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="sz-klasse-id"/>
+      <!-- Modus Toggle -->
+      <div style="display:flex;gap:var(--space-3);margin-bottom:var(--space-5)">
+        <button id="sz-btn-ganz" type="button" onclick="setSzModus('ganz')"
+          style="flex:1;padding:var(--space-3);border-radius:var(--radius-md);border:2px solid var(--color-primary);background:var(--color-primary);color:#fff;font-weight:600;cursor:pointer;transition:all var(--transition-interactive)">
+          🏫 Ganze Klasse
+        </button>
+        <button id="sz-btn-faecher" type="button" onclick="setSzModus('faecher')"
+          style="flex:1;padding:var(--space-3);border-radius:var(--radius-md);border:2px solid var(--color-border);background:var(--color-surface);font-weight:600;cursor:pointer;transition:all var(--transition-interactive)">
+          📚 Einzelne Fächer
+        </button>
+      </div>
+
+      <!-- Ganze Klasse: ein Schulhaus-Select -->
+      <div id="sz-ganz-section">
+        <div class="form-group">
+          <label class="form-label">Schulhaus für gesamte Klasse</label>
+          <select class="form-input" id="sz-schulhaus-ganz">
+            <option value="">— Schulhaus wählen</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Einzelne Fächer: Tabelle mit Schulhaus pro Fach -->
+      <div id="sz-faecher-section" style="display:none">
+        <div style="font-size:var(--text-sm);color:var(--color-text-muted);margin-bottom:var(--space-3)">
+          Wähle für jedes Fach das Schulhaus:
+        </div>
+        <div id="sz-faecher-list" style="display:grid;gap:var(--space-2)">
+          <div style="text-align:center;padding:var(--space-6);color:var(--color-text-muted)">Lädt…</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeSchulhausZuweisungModal()">Abbrechen</button>
+      <button class="btn-sm btn-accent-sm" onclick="saveSchulhausZuweisung()">Speichern</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
