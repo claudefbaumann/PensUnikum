@@ -1434,7 +1434,8 @@ async function openFachModal(editId, stufeKey) {
     } else {
       el.innerHTML = '<span style="font-size:var(--text-xs);color:var(--color-text-muted)">Lädt…</span>';
       const { data: defaults } = await db.from('faecher_defaults')
-        .select('name,kuerzel').eq('stufe_key', sk).order('reihenfolge').order('name');
+        .select('name,kuerzel,prioritaet,prioritaet_1,prioritaet_2')
+        .eq('stufe_key', sk).order('reihenfolge').order('name');
       const bereitsVorhanden = new Set(
         (window._verband_faecher || []).filter(f => f.stufe_key === sk).map(f => f.name.toLowerCase())
       );
@@ -1448,7 +1449,14 @@ async function openFachModal(editId, stufeKey) {
           btn.type = 'button';
           btn.dataset.name = f.name;
           btn.dataset.kuerzel = f.kuerzel || '';
-          btn.textContent = (f.kuerzel ? f.kuerzel + ' ' : '') + f.name;
+          btn.dataset.prioritaet = f.prioritaet || 2;
+          btn.dataset.prio1 = f.prioritaet_1 || '';
+          btn.dataset.prio2 = f.prioritaet_2 || '';
+          const einstufIcon = f.prioritaet===1?'🔵':f.prioritaet===3?'⚪':'🟡';
+          const p1Icon = f.prioritaet_1==='vormittag'?'🌅':f.prioritaet_1==='nachmittag'?'🌆':'';
+          const p2Icon = f.prioritaet_2==='vormittag'?'🌅':f.prioritaet_2==='nachmittag'?'🌆':'';
+          btn.textContent = (f.kuerzel||f.name.substring(0,4)) + ' ' + einstufIcon + (p1Icon?' '+p1Icon:'') + (p2Icon?' '+p2Icon:'');
+          btn.title = f.name + (f.prioritaet_1?' · P1: '+f.prioritaet_1:'') + (f.prioritaet_2?' · P2: '+f.prioritaet_2:'');
           btn.style.cssText = 'padding:2px 10px;border-radius:999px;font-size:0.8rem;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);cursor:pointer;transition:all 150ms ease';
           btn.addEventListener('mouseenter', () => { btn.style.background='var(--color-primary)'; btn.style.color='#fff'; btn.style.borderColor='var(--color-primary)'; });
           btn.addEventListener('mouseleave', () => {
@@ -1458,6 +1466,9 @@ async function openFachModal(editId, stufeKey) {
           btn.addEventListener('click', () => {
             document.getElementById('fach-name').value = btn.dataset.name;
             document.getElementById('fach-kuerzel').value = btn.dataset.kuerzel;
+            document.getElementById('fach-prioritaet').value = btn.dataset.prioritaet || '2';
+            document.getElementById('fach-prio1').value = btn.dataset.prio1 || '';
+            document.getElementById('fach-prio2').value = btn.dataset.prio2 || '';
             el.querySelectorAll('button').forEach(b => { delete b.dataset.selected; b.style.background='var(--color-surface)'; b.style.color='var(--color-text)'; b.style.borderColor='var(--color-border)'; });
             btn.dataset.selected = '1';
             btn.style.background='var(--color-primary)'; btn.style.color='#fff'; btn.style.borderColor='var(--color-primary)';
