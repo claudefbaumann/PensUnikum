@@ -1568,7 +1568,6 @@ function openStufeAdminModal(editId) {
     if (s) {
       document.getElementById('stufe-admin-label').value = s.stufe_label || '';
       document.getElementById('stufe-admin-key').value = s.stufe_key || '';
-      document.getElementById('stufe-admin-reihenfolge').value = s.reihenfolge ?? '';
     }
   } else {
     document.getElementById('stufe-admin-label').value = '';
@@ -1583,7 +1582,6 @@ async function saveStufeAdmin() {
   const editId   = document.getElementById('stufe-admin-edit-id').value;
   const label    = document.getElementById('stufe-admin-label').value.trim();
   const key      = document.getElementById('stufe-admin-key').value.trim().toLowerCase().replace(/\s+/g,'_');
-  const reihenfolge = parseInt(document.getElementById('stufe-admin-reihenfolge').value) || 99;
   if (!label || !key) { alert('Bitte Bezeichnung und Schlüssel eingeben'); return; }
   if (editId) {
     const { error } = await db.from('schulstufen_master').update({ stufe_label: label, stufe_key: key, reihenfolge }).eq('id', editId);
@@ -1622,12 +1620,10 @@ function openFachDefaultModal(editId, stufeKey) {
     if (f) {
       document.getElementById('fach-default-name').value = f.name || '';
       document.getElementById('fach-default-kuerzel').value = f.kuerzel || '';
-      document.getElementById('fach-default-reihenfolge').value = f.reihenfolge ?? '';
     }
   } else {
     document.getElementById('fach-default-name').value = '';
     document.getElementById('fach-default-kuerzel').value = '';
-    document.getElementById('fach-default-reihenfolge').value = _admin_faecher_defaults.length.toString();
   }
   document.getElementById('modal-fach-default').classList.add('active');
 }
@@ -1638,7 +1634,6 @@ async function saveFachDefault() {
   const sk     = document.getElementById('fach-default-stufe-key').value;
   const name   = document.getElementById('fach-default-name').value.trim();
   const kuerzel = document.getElementById('fach-default-kuerzel').value.trim().toUpperCase() || null;
-  const reihenfolge = parseInt(document.getElementById('fach-default-reihenfolge').value) || 0;
   if (!name) { alert('Bitte Fachname eingeben'); return; }
   if (editId) {
     const { error } = await db.from('faecher_defaults').update({ name, kuerzel, reihenfolge }).eq('id', editId);
@@ -1819,7 +1814,6 @@ async function deleteFachDefault(id, name) {
       <input type="hidden" id="stufe-admin-edit-id"/>
       <div class="form-group" style="grid-column:1/-1"><label class="form-label">Bezeichnung *</label><input class="form-input" id="stufe-admin-label" placeholder="z.B. Unterstufe – 3. Schuljahr"/></div>
       <div class="form-group"><label class="form-label">Schlüssel (Key) *</label><input class="form-input" id="stufe-admin-key" placeholder="z.B. us3" maxlength="12"/></div>
-      <div class="form-group"><label class="form-label">Reihenfolge</label><input class="form-input" type="number" id="stufe-admin-reihenfolge" placeholder="z.B. 5" min="1"/></div>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeStufeAdminModal()">Abbrechen</button>
@@ -1840,7 +1834,6 @@ async function deleteFachDefault(id, name) {
       <input type="hidden" id="fach-default-stufe-key"/>
       <div class="form-group" style="grid-column:1/-1"><label class="form-label">Fachname *</label><input class="form-input" id="fach-default-name" placeholder="z.B. Mathematik"/></div>
       <div class="form-group"><label class="form-label">Kürzel</label><input class="form-input" id="fach-default-kuerzel" placeholder="z.B. MA" maxlength="6"/></div>
-      <div class="form-group"><label class="form-label">Reihenfolge</label><input class="form-input" type="number" id="fach-default-reihenfolge" placeholder="0" min="0"/></div>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeFachDefaultModal()">Abbrechen</button>
