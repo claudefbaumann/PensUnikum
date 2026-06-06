@@ -1204,9 +1204,11 @@ async function saveFach() {
     verband_id: editTargetId
   };
   if (!payload.name) { alert('Bitte Fachname eingeben'); return; }
+  if (!payload.verband_id) { alert('Kein Verband ausgewählt – bitte Seite neu laden.'); return; }
   if (editId) {
-    const { error } = await db.from('verband_faecher').update(payload).eq('id', editId);
-    if (error) { alert('Fehler: ' + error.message); return; }
+    const { name, kuerzel } = payload;
+    const { error } = await db.from('verband_faecher').update({ name, kuerzel }).eq('id', editId);
+    if (error) { alert('Fehler beim Speichern: ' + error.message); return; }
   } else {
     const { error } = await db.from('verband_faecher').insert(payload);
     if (error) { alert('Fehler: ' + error.message); return; }
