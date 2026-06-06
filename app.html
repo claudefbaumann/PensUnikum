@@ -589,8 +589,8 @@
                 <thead>
                   <tr>
                     <th style="text-align:left;font-size:var(--text-xs);color:var(--color-text-muted);padding:var(--space-2) var(--space-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em">Tag</th>
-                    <th style="text-align:center;font-size:var(--text-xs);color:var(--color-text-muted);padding:var(--space-2) var(--space-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em">🌅 Vormittag</th>
-                    <th style="text-align:center;font-size:var(--text-xs);color:var(--color-text-muted);padding:var(--space-2) var(--space-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em">🌆 Nachmittag</th>
+                    <th style="text-align:left;font-size:var(--text-xs);color:var(--color-text-muted);padding:var(--space-2) var(--space-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em">🌅 Vormittag &nbsp;<span style="font-weight:400;text-transform:none">(Startzeit – Endzeit)</span></th>
+                    <th style="text-align:left;font-size:var(--text-xs);color:var(--color-text-muted);padding:var(--space-2) var(--space-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em">🌆 Nachmittag &nbsp;<span style="font-weight:400;text-transform:none">(Startzeit – Endzeit)</span></th>
                   </tr>
                 </thead>
                 <tbody id="wunsch-halbtage-tbody"></tbody>
@@ -598,22 +598,11 @@
             </div>
           </div>
 
-          <!-- 3. Zeitspannen (z.B. frühester Beginn / spätestes Ende) -->
+          <!-- 3. Bemerkungen -->
           <div class="card">
-            <div class="card-header"><span class="card-title">Zeitliche Einschränkungen</span></div>
-            <div style="padding:var(--space-5);display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
-              <div class="form-group">
-                <label class="form-label">Frühester Unterrichtsbeginn</label>
-                <input class="form-input" type="time" id="wunsch-zeit-von" value="07:30"/>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Spätestes Unterrichtsende</label>
-                <input class="form-input" type="time" id="wunsch-zeit-bis" value="17:00"/>
-              </div>
-              <div class="form-group" style="grid-column:1/-1">
-                <label class="form-label">Bemerkungen / Sonderwünsche</label>
-                <textarea class="form-input" id="wunsch-bemerkungen" rows="2" placeholder="z.B. Mittwochnachmittag frei, Präferenz Morgenklassen…"></textarea>
-              </div>
+            <div class="card-header"><span class="card-title">Sonderwünsche &amp; Bemerkungen</span></div>
+            <div style="padding:var(--space-4)">
+              <textarea class="form-input" id="wunsch-bemerkungen" rows="2" placeholder="z.B. Präferenz Morgenklassen, besondere Absprachen…"></textarea>
             </div>
           </div>
 
@@ -1871,9 +1860,9 @@ async function loadLpWuensche() {
     document.getElementById('wunsch-zeit-von').value = w.zeit_von ? w.zeit_von.substring(0,5) : '07:30';
     document.getElementById('wunsch-zeit-bis').value = w.zeit_bis ? w.zeit_bis.substring(0,5) : '17:00';
     document.getElementById('wunsch-bemerkungen').value = w.bemerkungen || '';
-    renderWunschHalbtage(w.halbtage || {});
+    renderWunschHalbtage(w.halbtage || {}, w.halbtag_zeiten || {});
   } else {
-    renderWunschHalbtage({});
+    renderWunschHalbtage({}, {});
   }
 
   const { data: stufen } = await db.from('lp_wunsch_stufen')
@@ -1883,7 +1872,22 @@ async function loadLpWuensche() {
   renderWunschStufen();
 }
 
-function renderWunschHalbtage(saved) {
+// Time slot config
+const HT_VM_DEFAULT = {von:'07:15', bis:'12:30'};
+const HT_NM_DEFAULT = {von:'13:00', bis:'17:45'};
+const TIME_STEPS = [];
+(function(){
+  for(let h=6;h<=20;h++) for(let m of [0,15,30,45])
+    TIME_STEPS.push((h<10?'0':'')+h+':'+(m===0?'00':m));
+})();
+
+function timeToIdx(t) {
+  const i = TIME_STEPS.indexOf(t);
+  return i >= 0 ? i : 0;
+}
+
+function renderWunschHalbtage(saved, savedZeiten) {
+  savedZeiten = savedZeiten || {};
   const tage = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
   const STATES = ['verfuegbar','nicht_verfuegbar','falls_noetig'];
   const ICONS  = {verfuegbar:'✅', nicht_verfuegbar:'🚫', falls_noetig:'⚠️'};
@@ -1891,27 +1895,79 @@ function renderWunschHalbtage(saved) {
 
   const tbody = document.getElementById('wunsch-halbtage-tbody');
   if (!tbody) return;
+
   tbody.innerHTML = tage.map(tag => {
     const vmKey = tag + '_vm';
     const nmKey = tag + '_nm';
     const vmState = saved[vmKey] || 'verfuegbar';
     const nmState = saved[nmKey] || 'verfuegbar';
+    const vmZ = savedZeiten[vmKey] || HT_VM_DEFAULT;
+    const nmZ = savedZeiten[nmKey] || HT_NM_DEFAULT;
+    const vmVon = timeToIdx(vmZ.von); const vmBis = timeToIdx(vmZ.bis);
+    const nmVon = timeToIdx(nmZ.von); const nmBis = timeToIdx(nmZ.bis);
+
+    function halfCell(key, state, vonIdx, bisIdx, defVon, defBis) {
+      return '<td style="padding:var(--space-2) var(--space-3);min-width:220px">'
+        + '<div style="display:flex;flex-direction:column;gap:6px">'
+        + '<button type="button" class="halbtag-btn" data-key="'+key+'" data-state="'+state+'"'
+        + ' style="'+halbtagBtnStyle(state)+';width:100%;justify-content:center;display:flex"'
+        + ' onclick="cycleHalbtag(this)">'
+        + ICONS[state] + ' ' + LABELS[state]
+        + '</button>'
+        + '<div class="ht-range-wrap" data-key="'+key+'" style="'+(state==='nicht_verfuegbar'?'opacity:.35;pointer-events:none':'')+'">'
+        + '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--color-text-muted);margin-bottom:2px">'
+        + '<span id="lbl-von-'+key+'">'+TIME_STEPS[vonIdx]+'</span>'
+        + '<span id="lbl-bis-'+key+'">'+TIME_STEPS[bisIdx]+'</span>'
+        + '</div>'
+        + '<div style="position:relative;height:20px;display:flex;align-items:center">'
+        + '<div style="position:absolute;left:0;right:0;height:4px;background:var(--color-surface-offset);border-radius:2px"></div>'
+        + '<div class="ht-range-fill" id="fill-'+key+'" style="position:absolute;height:4px;background:var(--color-primary);border-radius:2px;left:'+(vonIdx/TIME_STEPS.length*100).toFixed(1)+'%;right:'+((1-bisIdx/TIME_STEPS.length)*100).toFixed(1)+'%"></div>'
+        + '<input type="range" class="ht-slider" data-role="von" data-key="'+key+'" min="0" max="'+(TIME_STEPS.length-1)+'" value="'+vonIdx+'" oninput="syncSliders(this)" style="position:absolute;width:100%;opacity:0;cursor:pointer;height:20px;z-index:2">'
+        + '<input type="range" class="ht-slider" data-role="bis" data-key="'+key+'" min="0" max="'+(TIME_STEPS.length-1)+'" value="'+bisIdx+'" oninput="syncSliders(this)" style="position:absolute;width:100%;opacity:0;cursor:pointer;height:20px;z-index:1">'
+        + '</div>'
+        + '</div>'
+        + '</div></td>';
+    }
+
     return '<tr style="border-top:1px solid var(--color-divider)">'
-      + '<td style="padding:var(--space-2) var(--space-3);font-size:var(--text-sm);font-weight:600">' + tag + '</td>'
-      + '<td style="text-align:center;padding:var(--space-2)">'
-      + '<button type="button" class="halbtag-btn" data-key="'+vmKey+'" data-state="'+vmState+'"'
-      + ' style="'+halbtagBtnStyle(vmState)+'"'
-      + ' onclick="cycleHalbtag(this)" title="'+LABELS[vmState]+'">'
-      + ICONS[vmState] + ' ' + LABELS[vmState]
-      + '</button></td>'
-      + '<td style="text-align:center;padding:var(--space-2)">'
-      + '<button type="button" class="halbtag-btn" data-key="'+nmKey+'" data-state="'+nmState+'"'
-      + ' style="'+halbtagBtnStyle(nmState)+'"'
-      + ' onclick="cycleHalbtag(this)" title="'+LABELS[nmState]+'">'
-      + ICONS[nmState] + ' ' + LABELS[nmState]
-      + '</button></td>'
+      + '<td style="padding:var(--space-3);font-size:var(--text-sm);font-weight:600;white-space:nowrap;color:var(--color-text)">' + tag + '</td>'
+      + halfCell(vmKey, vmState, vmVon, vmBis, HT_VM_DEFAULT, HT_NM_DEFAULT)
+      + halfCell(nmKey, nmState, nmVon, nmBis, HT_NM_DEFAULT, HT_NM_DEFAULT)
       + '</tr>';
   }).join('');
+}
+
+function syncSliders(changed) {
+  const key = changed.dataset.key;
+  const role = changed.dataset.role;
+  const sliders = document.querySelectorAll('.ht-slider[data-key="'+key+'"]');
+  let vonIdx = parseInt(sliders[0].value);
+  let bisIdx = parseInt(sliders[1].value);
+  // Enforce min gap of 2 steps (30min)
+  if (role === 'von' && vonIdx >= bisIdx - 1) { vonIdx = bisIdx - 2; sliders[0].value = vonIdx; }
+  if (role === 'bis' && bisIdx <= vonIdx + 1) { bisIdx = vonIdx + 2; sliders[1].value = bisIdx; }
+  document.getElementById('lbl-von-'+key).textContent = TIME_STEPS[vonIdx];
+  document.getElementById('lbl-bis-'+key).textContent = TIME_STEPS[bisIdx];
+  const fill = document.getElementById('fill-'+key);
+  if (fill) {
+    fill.style.left  = (vonIdx/(TIME_STEPS.length-1)*100).toFixed(1)+'%';
+    fill.style.right = ((1-bisIdx/(TIME_STEPS.length-1))*100).toFixed(1)+'%';
+  }
+}
+
+function cycleHalbtag(btn) {
+  const STATES = ['verfuegbar','nicht_verfuegbar','falls_noetig'];
+  const ICONS  = {verfuegbar:'✅', nicht_verfuegbar:'🚫', falls_noetig:'⚠️'};
+  const LABELS = {verfuegbar:'Verfügbar', nicht_verfuegbar:'Nicht verfügbar', falls_noetig:'Falls nötig'};
+  const cur = btn.dataset.state;
+  const next = STATES[(STATES.indexOf(cur)+1) % STATES.length];
+  btn.dataset.state = next;
+  btn.style.cssText = halbtagBtnStyle(next) + ';width:100%;justify-content:center;display:flex';
+  btn.textContent = ICONS[next] + ' ' + LABELS[next];
+  // Dim slider when not available
+  const wrap = btn.closest('.ht-range-wrap') || btn.nextElementSibling;
+  const rangeWrap = btn.parentElement.querySelector('.ht-range-wrap');
+  if (rangeWrap) rangeWrap.style.cssText = next==='nicht_verfuegbar' ? 'opacity:.35;pointer-events:none' : '';
 }
 
 function halbtagBtnStyle(state) {
@@ -2050,10 +2106,21 @@ async function saveLpWuensche() {
   if (pMin > pMax) { alert('Minimum-Pensum (' + pMin + '%) darf nicht grösser als Maximum-Pensum (' + pMax + '%) sein.'); document.getElementById('wunsch-pensum-min').focus(); return; }
   if (pMax - pMin > 80) { if (!confirm('Sehr grosser Pensum-Bereich (' + pMin + '–' + pMax + '%). Stimmt das so?')) return; }
 
-  // Collect halbtage from buttons
+  // Collect halbtage states + time ranges
   const halbtage = {};
+  const halbtag_zeiten = {};
   document.querySelectorAll('#wunsch-halbtage-tbody .halbtag-btn').forEach(btn => {
     halbtage[btn.dataset.key] = btn.dataset.state;
+  });
+  document.querySelectorAll('#wunsch-halbtage-tbody .ht-range-wrap').forEach(wrap => {
+    const key = wrap.dataset.key;
+    const sliders = wrap.querySelectorAll('.ht-slider');
+    if (sliders.length === 2) {
+      halbtag_zeiten[key] = {
+        von: TIME_STEPS[parseInt(sliders[0].value)],
+        bis: TIME_STEPS[parseInt(sliders[1].value)]
+      };
+    }
   });
 
   const payload = {
@@ -2063,8 +2130,7 @@ async function saveLpWuensche() {
     modus: document.getElementById('wunsch-modus').value,
     max_klassen: parseInt(document.getElementById('wunsch-max-klassen').value)||null,
     halbtage,
-    zeit_von: document.getElementById('wunsch-zeit-von').value || null,
-    zeit_bis: document.getElementById('wunsch-zeit-bis').value || null,
+    halbtag_zeiten,
     bemerkungen: document.getElementById('wunsch-bemerkungen').value.trim() || null,
     aktualisiert_am: new Date().toISOString()
   };
