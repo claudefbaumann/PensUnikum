@@ -1366,9 +1366,10 @@ function switchStufenTab(key) {
 }
 
 // ── Fach Modal (updated for stufe_key) ──
-function openFachModal(editId, stufeKey) {
+async function openFachModal(editId, stufeKey) {
+  const sk = stufeKey || _aktive_stufe_key || '';
   document.getElementById('fach-edit-id').value = editId || '';
-  document.getElementById('fach-stufe-key').value = stufeKey || _aktive_stufe_key || '';
+  document.getElementById('fach-stufe-key').value = sk;
   document.getElementById('fach-modal-title').textContent = editId ? 'Fach bearbeiten' : 'Fach erfassen';
   if (!editId) {
     document.getElementById('fach-name').value = '';
@@ -1378,6 +1379,49 @@ function openFachModal(editId, stufeKey) {
     if (f) {
       document.getElementById('fach-name').value = f.name || '';
       document.getElementById('fach-kuerzel').value = f.kuerzel || '';
+    }
+  }
+  // Schnellauswahl
+  const wrapper = document.getElementById('fach-schnellauswahl-wrapper');
+  const el = document.getElementById('fach-schnellauswahl');
+  if (wrapper) wrapper.style.display = editId ? 'none' : 'block';
+  if (el && !editId) {
+    if (!sk) {
+      el.innerHTML = '<span style="font-size:var(--text-xs);color:var(--color-text-muted)">Keine Stufe ausgewählt</span>';
+    } else {
+      el.innerHTML = '<span style="font-size:var(--text-xs);color:var(--color-text-muted)">Lädt…</span>';
+      const { data: defaults } = await db.from('faecher_defaults')
+        .select('name,kuerzel').eq('stufe_key', sk).order('reihenfolge').order('name');
+      const bereitsVorhanden = new Set(
+        (window._verband_faecher || []).filter(f => f.stufe_key === sk).map(f => f.name.toLowerCase())
+      );
+      const available = (defaults || []).filter(f => !bereitsVorhanden.has(f.name.toLowerCase()));
+      if (!available.length) {
+        el.innerHTML = '<span style="font-size:var(--text-xs);color:var(--color-text-muted)">Alle Vorlage-Fächer bereits hinzugefügt</span>';
+      } else {
+        el.innerHTML = '';
+        available.forEach(f => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.dataset.name = f.name;
+          btn.dataset.kuerzel = f.kuerzel || '';
+          btn.textContent = (f.kuerzel ? f.kuerzel + ' ' : '') + f.name;
+          btn.style.cssText = 'padding:2px 10px;border-radius:999px;font-size:0.8rem;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);cursor:pointer;transition:all 150ms ease';
+          btn.addEventListener('mouseenter', () => { btn.style.background='var(--color-primary)'; btn.style.color='#fff'; btn.style.borderColor='var(--color-primary)'; });
+          btn.addEventListener('mouseleave', () => {
+            if (btn.dataset.selected) return;
+            btn.style.background='var(--color-surface)'; btn.style.color='var(--color-text)'; btn.style.borderColor='var(--color-border)';
+          });
+          btn.addEventListener('click', () => {
+            document.getElementById('fach-name').value = btn.dataset.name;
+            document.getElementById('fach-kuerzel').value = btn.dataset.kuerzel;
+            el.querySelectorAll('button').forEach(b => { delete b.dataset.selected; b.style.background='var(--color-surface)'; b.style.color='var(--color-text)'; b.style.borderColor='var(--color-border)'; });
+            btn.dataset.selected = '1';
+            btn.style.background='var(--color-primary)'; btn.style.color='#fff'; btn.style.borderColor='var(--color-primary)';
+          });
+          el.appendChild(btn);
+        });
+      }
     }
   }
   document.getElementById('modal-fach').classList.add('active');
@@ -1713,17 +1757,25 @@ async function deleteFachDefault(id, name) {
   </div>
 </div>
 <div class="modal-overlay" id="modal-fach">
-  <div class="modal">
+  <div class="modal" style="max-width:520px">
     <div class="modal-header">
       <span class="modal-title" id="fach-modal-title">Fach erfassen</span>
       <button class="icon-btn" onclick="closeFachModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
-    <div class="modal-body modal-grid">
+    <div class="modal-body">
       <input type="hidden" id="fach-edit-id"/>
       <input type="hidden" id="fach-stufe-key"/>
-      <div class="form-group" style="grid-column:1/-1"><label class="form-label">Fachname *</label><input class="form-input" id="fach-name" placeholder="z.B. Mathematik"/></div>
-      <div class="form-group"><label class="form-label">Kürzel</label><input class="form-input" id="fach-kuerzel" placeholder="z.B. MAT" maxlength="6"/></div>
-
+      <div id="fach-schnellauswahl-wrapper" style="margin-bottom:var(--space-4)">
+        <label class="form-label" style="margin-bottom:var(--space-2)">Aus Vorlage hinzufügen</label>
+        <div id="fach-schnellauswahl" style="display:flex;flex-wrap:wrap;gap:var(--space-2);max-height:160px;overflow-y:auto;padding:var(--space-2);background:var(--color-surface-offset);border-radius:var(--radius-md)">
+          <span style="color:var(--color-text-muted);font-size:var(--text-xs)">Lädt…</span>
+        </div>
+        <p style="font-size:var(--text-xs);color:var(--color-text-muted);margin-top:var(--space-1)">Klick auf ein Fach &rarr; übernimmt Name &amp; Kürzel ins Formular unten</p>
+      </div>
+      <div style="border-top:1px solid var(--color-border);padding-top:var(--space-4);display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">Fachname *</label><input class="form-input" id="fach-name" placeholder="z.B. Mathematik"/></div>
+        <div class="form-group"><label class="form-label">Kürzel</label><input class="form-input" id="fach-kuerzel" placeholder="z.B. MA" maxlength="6"/></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeFachModal()">Abbrechen</button>
