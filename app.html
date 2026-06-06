@@ -883,7 +883,7 @@ function showVbForm() {
   document.getElementById('vb-status').value = 'aktiv';
 }
 
-function showVbDetail(id) {
+async function showVbDetail(id) {
   const v = VERBAENDE.find(x => x.id === id);
   if (!v) return;
   editTargetId = id;
@@ -909,31 +909,38 @@ function showVbDetail(id) {
   if(typeof loadVerbandSchulstufen === 'function') loadVerbandSchulstufen(id);
   document.getElementById('vb-klassen-card').style.display='none';
   // Schulleitung als erste Zeile + Demo-Lehrpersonen mit Modus
-  const demoLP = [
-    { name: v.slName, email: v.slEmail, initials: initials, rolle: 'Verbandsleitung', modus: 'mit_login', aktiv: true },
-    { name: 'S. Ritter', email: 's.ritter@' + (v.domain||'schule.ch'), initials: 'SR', rolle: 'Lehrperson', modus: 'ohne_login', aktiv: true },
-    { name: 'A. Tanner', email: 'a.tanner@' + (v.domain||'schule.ch'), initials: 'AT', rolle: 'Lehrperson', modus: 'mit_login', aktiv: true },
-  ];
-  document.getElementById('vb-detail-users').innerHTML = demoLP.map((p, i) => {
-    const modBadge = p.modus === 'mit_login'
-      ? '<span class="badge badge-mode-login" title="Hat App-Zugang">🔐 Mit Login</span>'
-      : '<span class="badge badge-mode-nologin" title="Schulleitung pflegt">📋 Ohne Login</span>';
-    const rolBadge = p.rolle === 'Verbandsleitung'
-      ? '<span class="badge badge-accent">' + p.rolle + '</span>'
-      : '<span class="badge badge-muted">' + p.rolle + '</span>';
-    return '<tr>'
-      + '<td><div class="avatar-cell">'
-      + '<div class="table-avatar ' + (i%2===1?'accent':'') + '">' + p.initials + '</div>'
-      + '<div><div class="cell-name">' + p.name + '</div>'
-      + '<div class="cell-sub">' + rolBadge + '</div></div></div></td>'
-      + '<td style="font-size:var(--text-sm);color:var(--color-text-muted)">' + p.email + '</td>'
-      + '<td>' + modBadge + '</td>'
-      + '<td><span class="badge badge-success">Aktiv</span></td>'
-      + '<td style="display:flex;gap:4px">'
-      + '<button class="btn-sm btn-outline-sm">Bearbeiten</button>'
-      + '<button class="btn-sm btn-outline-sm" onclick="toggleModusInline(this,\'' + p.initials + '\',\'' + p.modus + '\')" title="Modus wechseln">⇄ Modus</button>'
-      + '</td></tr>';
-  }).join('');
+  // Load real LP from Supabase
+  const { data: lpList } = await db.from('benutzer')
+    .select('id,vorname,nachname,email,rolle,modus,aktiv')
+    .eq('verband_id', id).order('nachname');
+  document.getElementById('vb-detail-users').innerHTML = (lpList && lpList.length)
+    ? lpList.map((p, i) => {
+        const name = ((p.vorname||'') + ' ' + (p.nachname||'')).trim();
+        const initials = ((p.vorname||'?')[0] + (p.nachname||'?')[0]).toUpperCase();
+        const modBadge = p.modus === 'mit_login'
+          ? '<span class="badge badge-mode-login">🔐 Mit Login</span>'
+          : '<span class="badge badge-mode-nologin">📋 Ohne Login</span>';
+        const rolBadge = p.rolle === 'verbandsleitung'
+          ? '<span class="badge badge-accent">Verbandsleitung</span>'
+          : '<span class="badge badge-muted">Lehrperson</span>';
+        const statusBadge = p.aktiv
+          ? '<span class="badge badge-success">Aktiv</span>'
+          : '<span class="badge badge-warning">Inaktiv</span>';
+        return '<tr>'
+          + '<td><div class="avatar-cell">'
+          + '<div class="table-avatar ' + (i%2===1?'accent':'') + '">' + initials + '</div>'
+          + '<div><div class="cell-name">' + name + '</div>'
+          + '<div class="cell-sub">' + rolBadge + '</div></div></div></td>'
+          + '<td style="font-size:var(--text-sm);color:var(--color-text-muted)">' + (p.email||'—') + '</td>'
+          + '<td>' + modBadge + '</td>'
+          + '<td>' + statusBadge + '</td>'
+          + '<td style="display:flex;gap:4px">'
+          + '<button class="btn-sm btn-outline-sm" onclick="openLpBearbeiten(\'' + p.id + '\')">✏️</button>'
+          + '<button class="btn-sm btn-outline-sm" onclick="openLpWuenscheFor(\'' + p.id + '\',\'' + encodeURIComponent(name) + '\')" title="Wünsche & Einschränkungen">🎯</button>'
+          + '</td></tr>';
+      }).join('')
+    : '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--color-text-muted)">Noch keine Lehrpersonen erfasst</td></tr>';
+
 }
 
 function editVerbandById(id) {
@@ -1015,6 +1022,7 @@ function showPanel(id){
   closeSidebar();
   if(id==='verbände'){ showVbList(); }
   if(id==='dashboard'){ loadVerbaende().then(()=>{ renderDashboardVbTable(); }); }
+  if(id==='lp-wunsch'){ setTimeout(loadLpWuensche, 80); }
 }
 
 
@@ -1265,8 +1273,53 @@ async function savePerson(){
   // Reload LP table if we're in Verband detail
   if (editTargetId) {
     const v = VERBAENDE.find(x => x.id === editTargetId);
-    if (v) await showVerbandDetail(v);
+    if (v) await showVbDetail(editTargetId);
   }
+}
+
+// ══ LP BEARBEITEN & WÜNSCHE ══
+
+async function openLpBearbeiten(lpId) {
+  const { data: lp } = await db.from('benutzer').select('*').eq('id', lpId).maybeSingle();
+  if (!lp) { alert('Lehrperson nicht gefunden'); return; }
+  document.getElementById('lp-edit-id').value = lp.id;
+  document.getElementById('lp-edit-vorname').value = lp.vorname || '';
+  document.getElementById('lp-edit-nachname').value = lp.nachname || '';
+  document.getElementById('lp-edit-email').value = lp.email || '';
+  document.getElementById('lp-edit-rolle').value = lp.rolle || 'lehrperson';
+  document.getElementById('lp-edit-modus').value = lp.modus || 'ohne_login';
+  document.getElementById('lp-edit-bemerkungen').value = lp.bemerkungen || '';
+  document.getElementById('lp-edit-aktiv').checked = lp.aktiv !== false;
+  document.getElementById('modal-lp-edit').classList.add('active');
+}
+
+async function saveLpBearbeiten() {
+  const id = document.getElementById('lp-edit-id').value;
+  if (!id) return;
+  const payload = {
+    vorname: document.getElementById('lp-edit-vorname').value.trim(),
+    nachname: document.getElementById('lp-edit-nachname').value.trim(),
+    email: document.getElementById('lp-edit-email').value.trim(),
+    rolle: document.getElementById('lp-edit-rolle').value,
+    modus: document.getElementById('lp-edit-modus').value,
+    bemerkungen: document.getElementById('lp-edit-bemerkungen').value.trim(),
+    aktiv: document.getElementById('lp-edit-aktiv').checked
+  };
+  const { error } = await db.from('benutzer').update(payload).eq('id', id);
+  if (error) { alert('Fehler: ' + error.message); return; }
+  document.getElementById('modal-lp-edit').classList.remove('active');
+  await showVbDetail(editTargetId);
+  showToast('✅ Lehrperson gespeichert');
+}
+
+function openLpWuenscheFor(lpId, nameEncoded) {
+  const name = decodeURIComponent(nameEncoded);
+  window._current_user_id = lpId;
+  window._active_verband_id = editTargetId;
+  // Update panel subtitle
+  const sub = document.querySelector('#panel-lp-wunsch .panel-subtitle');
+  if (sub) sub.textContent = 'Wünsche für: ' + name;
+  showPanel('lp-wunsch');
 }
 
 
@@ -2340,5 +2393,47 @@ function closeSchulhausZuweisungModal() {
   </div>
 </div>
 
+
+<!-- ══ MODAL: LP BEARBEITEN ══ -->
+<div class="modal-overlay" id="modal-lp-edit">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title">Lehrperson bearbeiten</span>
+      <button class="icon-btn" onclick="document.getElementById('modal-lp-edit').classList.remove('active')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="lp-edit-id"/>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
+        <div class="form-group"><label class="form-label">Vorname</label><input class="form-input" id="lp-edit-vorname" placeholder="Vorname"/></div>
+        <div class="form-group"><label class="form-label">Nachname</label><input class="form-input" id="lp-edit-nachname" placeholder="Nachname"/></div>
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">E-Mail</label><input class="form-input" id="lp-edit-email" type="email" placeholder="name@schule.ch"/></div>
+        <div class="form-group"><label class="form-label">Rolle</label>
+          <select class="form-input" id="lp-edit-rolle">
+            <option value="lehrperson">Lehrperson</option>
+            <option value="verbandsleitung">Verbandsleitung</option>
+            <option value="stv_verbandsleitung">Stv. Verbandsleitung</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Modus</label>
+          <select class="form-input" id="lp-edit-modus">
+            <option value="mit_login">🔐 Mit Login</option>
+            <option value="ohne_login">📋 Ohne Login</option>
+          </select>
+        </div>
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">Bemerkungen</label><textarea class="form-input" id="lp-edit-bemerkungen" rows="2" placeholder="Interne Notizen…"></textarea></div>
+        <div class="form-group" style="grid-column:1/-1;display:flex;align-items:center;gap:var(--space-3)">
+          <input type="checkbox" id="lp-edit-aktiv" style="width:18px;height:18px;cursor:pointer"/>
+          <label for="lp-edit-aktiv" style="cursor:pointer;font-size:var(--text-sm)">Lehrperson aktiv</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="document.getElementById('modal-lp-edit').classList.remove('active')">Abbrechen</button>
+      <button class="btn-sm btn-accent-sm" onclick="saveLpBearbeiten()">Speichern</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
