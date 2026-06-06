@@ -1852,7 +1852,6 @@ async function loadLpWuensche() {
     setVal('wunsch-pensum-max', w.pensum_max ?? 100);
     setVal('wunsch-modus', w.modus || 'egal');
     setVal('wunsch-max-klassen', w.max_klassen || '');
-    setVal('wunsch-bemerkungen', w.bemerkungen || '');
     renderWunschHalbtage(w.halbtage || {}, w.halbtag_zeiten || {});
   } else {
     setVal('wunsch-pensum-min', 0);
@@ -2117,7 +2116,6 @@ async function saveLpWuensche() {
     max_klassen: parseInt(document.getElementById('wunsch-max-klassen').value)||null,
     halbtage,
     halbtag_zeiten,
-    bemerkungen: document.getElementById('wunsch-bemerkungen').value.trim() || null,
     aktualisiert_am: new Date().toISOString()
   };
   const { error } = await db.from('lp_wuensche').upsert(payload, { onConflict: 'benutzer_id,verband_id' });
