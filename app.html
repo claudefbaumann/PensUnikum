@@ -1978,7 +1978,7 @@ function halbtagBtnStyle(state) {
   return base + 'background:var(--color-warning-highlight);border-color:var(--color-warning);color:var(--color-warning)';
 }
 
-function function cycleHalbtag(btn) {
+function cycleHalbtag(btn) {
   const STATES = ['verfuegbar','nicht_verfuegbar','falls_noetig'];
   const ICONS  = {verfuegbar:'✅', nicht_verfuegbar:'🚫', falls_noetig:'⚠️'};
   const LABELS = {verfuegbar:'Verfügbar', nicht_verfuegbar:'Nicht verfügbar', falls_noetig:'Falls nötig'};
@@ -1988,16 +1988,11 @@ function function cycleHalbtag(btn) {
   btn.style.cssText = halbtagBtnStyle(next) + ';width:100%;justify-content:center;display:flex';
   btn.textContent = ICONS[next] + ' ' + LABELS[next];
   btn.title = LABELS[next];
-  // Enable/disable slider wrap based on state
+  // Enable/disable slider wrap
   const wrap = btn.parentElement ? btn.parentElement.querySelector('.ht-range-wrap') : null;
   if (wrap) {
-    if (next === 'nicht_verfuegbar') {
-      wrap.style.opacity = '0.35';
-      wrap.style.pointerEvents = 'none';
-    } else {
-      wrap.style.opacity = '1';
-      wrap.style.pointerEvents = '';
-    }
+    wrap.style.opacity = next === 'nicht_verfuegbar' ? '0.35' : '1';
+    wrap.style.pointerEvents = next === 'nicht_verfuegbar' ? 'none' : '';
   }
 }
 
