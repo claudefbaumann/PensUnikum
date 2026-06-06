@@ -1923,7 +1923,7 @@ async function openSchulhausZuweisungModal(klasseId, bezeichnungEncoded) {
 
   // Load current Klasse data
   const { data: kl } = await db.from('schulklassen')
-    .select('schulhaus_id,zuweisung_modus,stufe').eq('id', klasseId).maybeSingle();
+    .select('schulhaus_id,zuweisung_modus,stufe,stufe_key,verband_id').eq('id', klasseId).maybeSingle();
 
   const modus = kl?.zuweisung_modus || 'ganz';
   _sz_modus = modus;
@@ -1935,13 +1935,22 @@ async function openSchulhausZuweisungModal(klasseId, bezeichnungEncoded) {
 
   // Load Fächer for this Klasse's Stufe
   const vid = kl?.verband_id || editTargetId;
-  const sk = kl?.stufe_key || kl?.stufe;
+  let sk = kl?.stufe_key || null;
+  // Fallback: resolve stufe_key from label via verband_schulstufen
+  if (!sk && kl?.stufe) {
+    const { data: stufenMatch } = await db.from('verband_schulstufen')
+      .select('stufe_key').eq('verband_id', vid).ilike('stufe_label', '%'+kl.stufe+'%').maybeSingle();
+    if (stufenMatch) sk = stufenMatch.stufe_key;
+  }
+  // If still no match, load all faecher for verband as fallback
   if (sk) {
     const { data: faecher } = await db.from('verband_faecher')
       .select('id,name,kuerzel,prioritaet,prioritaet_1,prioritaet_2').eq('verband_id', vid).eq('stufe_key', sk).order('name');
     _sz_klasse_faecher = faecher || [];
   } else {
-    _sz_klasse_faecher = [];
+    const { data: faecher } = await db.from('verband_faecher')
+      .select('id,name,kuerzel,prioritaet,prioritaet_1,prioritaet_2').eq('verband_id', vid).order('stufe_key').order('name');
+    _sz_klasse_faecher = faecher || [];
   }
 
   // Load existing per-Fach assignments
@@ -1979,10 +1988,15 @@ function setSzModus(modus) {
       ? 'Auf "Einzelne Fächer" wechseln? Alle Fächer werden auf "'+shName+'" vorgesetzt.'
       : 'Auf "Einzelne Fächer" wechseln?';
     if (!confirm(msg)) return;
-    // Pre-fill all Fach selects with current Schulhaus
+    _sz_modus = modus;
+    setSzModusUI(modus);
+    // Pre-fill AFTER section is visible
     if (shId) {
-      document.querySelectorAll('#sz-faecher-list select').forEach(sel => { sel.value = shId; });
+      setTimeout(() => {
+        document.querySelectorAll('#sz-faecher-list select').forEach(sel => { sel.value = shId; });
+      }, 50);
     }
+    return;
   }
   if (modus === 'ganz' && _sz_modus === 'faecher') {
     if (!confirm('Zurück zu "Ganze Klasse"? Die fachweisen Zuweisungen werden gelöscht.')) return;
