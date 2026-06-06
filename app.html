@@ -419,16 +419,16 @@
             </table>
           </div>
 
-          <!-- Fächer-Konfiguration -->
+          <!-- Schulstufen & Fächer -->
           <div class="card" style="margin-top:var(--space-6)">
             <div class="card-header">
-              <span class="card-title">Fächer-Konfiguration</span>
-              <button class="btn-sm btn-accent-sm" onclick="openFachModal()">+ Fach erfassen</button>
+              <span class="card-title">Schulstufen</span>
+              <button class="btn-sm btn-accent-sm" onclick="openStufenModal()">+ Schulstufe hinzufügen</button>
             </div>
-            <table>
-              <thead><tr><th>Fach</th><th>Kürzel</th><th></th></tr></thead>
-              <tbody id="vb-detail-faecher"></tbody>
-            </table>
+            <div id="stufen-tabs-nav" style="display:flex;flex-wrap:wrap;gap:var(--space-2);padding:0 var(--space-4) var(--space-3);border-bottom:1px solid var(--color-border);"></div>
+            <div id="stufen-tabs-content" style="padding:var(--space-4);">
+              <div style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">Noch keine Schulstufen erfasst</div>
+            </div>
           </div>
 
           <!-- Schulhäuser -->
@@ -834,7 +834,7 @@ function showVbDetail(id) {
       + '</div></div>';
   const initials = v.slName.split(' ').map(n => n[0]).join('');
   if(typeof loadSchulhaeuser === 'function') loadSchulhaeuser(id);
-  if(typeof loadVerbandFaecher === 'function') loadVerbandFaecher(id);
+  if(typeof loadVerbandSchulstufen === 'function') loadVerbandSchulstufen(id);
   document.getElementById('vb-klassen-card').style.display='none';
   // Schulleitung als erste Zeile + Demo-Lehrpersonen mit Modus
   const demoLP = [
@@ -1178,9 +1178,144 @@ async function savePerson(){
 
 
 
-// ── FÄCHER-KONFIGURATION (pro Verband) ──
-function openFachModal(editId) {
+// ══ SCHULSTUFEN & FÄCHER KONFIGURATION ══
+
+const STUFEN_MASTER = [
+  { key:'kg1',  label:'Kindergarten – 1. Jahr',          reihenfolge:1,  faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur, Mensch, Gesellschaft',kuerzel:'NMG'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Entwicklungsorientierte Zugänge',kuerzel:'EZ'}]},
+  { key:'kg2',  label:'Kindergarten – 2. Jahr',          reihenfolge:2,  faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur, Mensch, Gesellschaft',kuerzel:'NMG'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Entwicklungsorientierte Zugänge',kuerzel:'EZ'}]},
+  { key:'us1',  label:'Unterstufe – 1. Schuljahr',       reihenfolge:3,  faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur, Mensch, Gesellschaft',kuerzel:'NMG'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Deutsch als Zweitsprache',kuerzel:'DaZ'}]},
+  { key:'us2',  label:'Unterstufe – 2. Schuljahr',       reihenfolge:4,  faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur, Mensch, Gesellschaft',kuerzel:'NMG'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Deutsch als Zweitsprache',kuerzel:'DaZ'}]},
+  { key:'us3',  label:'Unterstufe – 3. Schuljahr',       reihenfolge:5,  faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur, Mensch, Gesellschaft',kuerzel:'NMG'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Deutsch als Zweitsprache',kuerzel:'DaZ'}]},
+  { key:'ms4',  label:'Unterstufe – 4. Schuljahr',       reihenfolge:6,  faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Französisch',kuerzel:'FS1F'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur, Mensch, Gesellschaft',kuerzel:'NMG'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Ethik, Religionen, Gemeinschaft',kuerzel:'ERG'},{name:'Deutsch als Zweitsprache',kuerzel:'DaZ'}]},
+  { key:'ms5',  label:'Unterstufe – 5. Schuljahr',       reihenfolge:7,  faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Französisch',kuerzel:'FS1F'},{name:'Englisch',kuerzel:'FS2E'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur, Mensch, Gesellschaft',kuerzel:'NMG'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Ethik, Religionen, Gemeinschaft',kuerzel:'ERG'},{name:'Deutsch als Zweitsprache',kuerzel:'DaZ'}]},
+  { key:'ms6',  label:'Unterstufe – 6. Schuljahr',       reihenfolge:8,  faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Französisch',kuerzel:'FS1F'},{name:'Englisch',kuerzel:'FS2E'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur, Mensch, Gesellschaft',kuerzel:'NMG'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Ethik, Religionen, Gemeinschaft',kuerzel:'ERG'},{name:'Deutsch als Zweitsprache',kuerzel:'DaZ'}]},
+  { key:'os7r', label:'Oberstufe – 7. Schuljahr – Real',      reihenfolge:9,  faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Französisch',kuerzel:'FS1F'},{name:'Englisch',kuerzel:'FS2E'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur und Technik',kuerzel:'NT'},{name:'Räume, Zeiten, Gesellschaften',kuerzel:'RZG'},{name:'Wirtschaft, Arbeit, Haushalt',kuerzel:'WAH'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Ethik, Religionen, Gemeinschaft',kuerzel:'ERG'},{name:'Berufliche Orientierung',kuerzel:'BO'},{name:'Deutsch als Zweitsprache',kuerzel:'DaZ'}]},
+  { key:'os8r', label:'Oberstufe – 8. Schuljahr – Real',      reihenfolge:10, faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Französisch',kuerzel:'FS1F'},{name:'Englisch',kuerzel:'FS2E'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur und Technik',kuerzel:'NT'},{name:'Räume, Zeiten, Gesellschaften',kuerzel:'RZG'},{name:'Wirtschaft, Arbeit, Haushalt',kuerzel:'WAH'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Ethik, Religionen, Gemeinschaft',kuerzel:'ERG'},{name:'Berufliche Orientierung',kuerzel:'BO'},{name:'Deutsch als Zweitsprache',kuerzel:'DaZ'}]},
+  { key:'os9r', label:'Oberstufe – 9. Schuljahr – Real',      reihenfolge:11, faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Französisch',kuerzel:'FS1F'},{name:'Englisch',kuerzel:'FS2E'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur und Technik',kuerzel:'NT'},{name:'Räume, Zeiten, Gesellschaften',kuerzel:'RZG'},{name:'Wirtschaft, Arbeit, Haushalt',kuerzel:'WAH'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Ethik, Religionen, Gemeinschaft',kuerzel:'ERG'},{name:'Berufliche Orientierung',kuerzel:'BO'},{name:'Deutsch als Zweitsprache',kuerzel:'DaZ'}]},
+  { key:'os7s', label:'Oberstufe – 7. Schuljahr – Sekundar',  reihenfolge:12, faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Französisch',kuerzel:'FS1F'},{name:'Englisch',kuerzel:'FS2E'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur und Technik',kuerzel:'NT'},{name:'Räume, Zeiten, Gesellschaften',kuerzel:'RZG'},{name:'Wirtschaft, Arbeit, Haushalt',kuerzel:'WAH'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Ethik, Religionen, Gemeinschaft',kuerzel:'ERG'},{name:'Berufliche Orientierung',kuerzel:'BO'},{name:'Deutsch als Zweitsprache',kuerzel:'DaZ'}]},
+  { key:'os8s', label:'Oberstufe – 8. Schuljahr – Sekundar',  reihenfolge:13, faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Französisch',kuerzel:'FS1F'},{name:'Englisch',kuerzel:'FS2E'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur und Technik',kuerzel:'NT'},{name:'Räume, Zeiten, Gesellschaften',kuerzel:'RZG'},{name:'Wirtschaft, Arbeit, Haushalt',kuerzel:'WAH'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Ethik, Religionen, Gemeinschaft',kuerzel:'ERG'},{name:'Berufliche Orientierung',kuerzel:'BO'},{name:'Deutsch als Zweitsprache',kuerzel:'DaZ'}]},
+  { key:'os9s', label:'Oberstufe – 9. Schuljahr – Sekundar',  reihenfolge:14, faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Französisch',kuerzel:'FS1F'},{name:'Englisch',kuerzel:'FS2E'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur und Technik',kuerzel:'NT'},{name:'Räume, Zeiten, Gesellschaften',kuerzel:'RZG'},{name:'Wirtschaft, Arbeit, Haushalt',kuerzel:'WAH'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Ethik, Religionen, Gemeinschaft',kuerzel:'ERG'},{name:'Berufliche Orientierung',kuerzel:'BO'},{name:'Deutsch als Zweitsprache',kuerzel:'DaZ'}]},
+  { key:'os7ss',label:'Oberstufe – 7. Schuljahr – Spez. Sek', reihenfolge:15, faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Französisch',kuerzel:'FS1F'},{name:'Englisch',kuerzel:'FS2E'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur und Technik',kuerzel:'NT'},{name:'Räume, Zeiten, Gesellschaften',kuerzel:'RZG'},{name:'Wirtschaft, Arbeit, Haushalt',kuerzel:'WAH'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Ethik, Religionen, Gemeinschaft',kuerzel:'ERG'},{name:'Berufliche Orientierung',kuerzel:'BO'},{name:'Deutsch als Zweitsprache',kuerzel:'DaZ'}]},
+  { key:'os8ss',label:'Oberstufe – 8. Schuljahr – Spez. Sek', reihenfolge:16, faecher:[{name:'Deutsch',kuerzel:'D'},{name:'Französisch',kuerzel:'FS1F'},{name:'Englisch',kuerzel:'FS2E'},{name:'Mathematik',kuerzel:'MA'},{name:'Natur und Technik',kuerzel:'NT'},{name:'Räume, Zeiten, Gesellschaften',kuerzel:'RZG'},{name:'Wirtschaft, Arbeit, Haushalt',kuerzel:'WAH'},{name:'Bildnerisches Gestalten',kuerzel:'BG'},{name:'Textiles und Technisches Gestalten',kuerzel:'TTG'},{name:'Musik',kuerzel:'MU'},{name:'Bewegung und Sport',kuerzel:'BS'},{name:'Medien und Informatik',kuerzel:'MI'},{name:'Ethik, Religionen, Gemeinschaft',kuerzel:'ERG'},{name:'Berufliche Orientierung',kuerzel:'BO'},{name:'Deutsch als Zweitsprache',kuerzel:'DaZ'}]},
+];
+
+let _aktive_stufe_key = null;
+let _verband_stufen = [];
+
+// ── Schulstufen-Modal ──
+function openStufenModal() {
+  const bereits = _verband_stufen.map(s => s.stufe_key);
+  const el = document.getElementById('stufen-auswahl');
+  el.innerHTML = STUFEN_MASTER.map(s => {
+    const vorhanden = bereits.includes(s.key);
+    return '<label style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);cursor:' + (vorhanden?'default':'pointer') + ';background:' + (vorhanden?'var(--color-surface-offset)':'var(--color-surface)') + '">'
+      + '<input type="checkbox" value="' + s.key + '"' + (vorhanden?' disabled checked':'') + ' style="accent-color:var(--color-primary)">'
+      + '<span style="font-size:var(--text-sm);color:' + (vorhanden?'var(--color-text-muted)':'var(--color-text)') + '">' + s.label + (vorhanden?' <span style="font-size:var(--text-xs);color:var(--color-primary)">(bereits erfasst)</span>':'') + '</span>'
+      + '</label>';
+  }).join('');
+  document.getElementById('modal-stufen').classList.add('active');
+}
+function closeStufenModal() { document.getElementById('modal-stufen').classList.remove('active'); }
+
+async function saveStufenAuswahl() {
+  const checked = [...document.querySelectorAll('#stufen-auswahl input:checked:not(:disabled)')];
+  if (!checked.length) { closeStufenModal(); return; }
+  for (const cb of checked) {
+    const key = cb.value;
+    const master = STUFEN_MASTER.find(s => s.key === key);
+    if (!master) continue;
+    const { data: stufenRow, error: se } = await db.from('verband_schulstufen')
+      .insert({ verband_id: editTargetId, stufe_key: key, stufe_label: master.label, reihenfolge: master.reihenfolge })
+      .select().single();
+    if (se) { console.error(se); continue; }
+    // Insert default Fächer
+    const faecherInsert = master.faecher.map((f,i) => ({
+      verband_id: editTargetId, stufe_key: key, name: f.name, kuerzel: f.kuerzel, reihenfolge: i
+    }));
+    await db.from('verband_faecher').insert(faecherInsert);
+  }
+  closeStufenModal();
+  await loadVerbandSchulstufen(editTargetId);
+  showToast('✅ Schulstufe(n) hinzugefügt');
+}
+
+// ── Schulstufe löschen ──
+async function deleteStufe(stufeKey, label) {
+  if (!confirm('Schulstufe «' + label + '» und alle zugehörigen Fächer wirklich löschen?')) return;
+  await db.from('verband_faecher').delete().eq('verband_id', editTargetId).eq('stufe_key', stufeKey);
+  await db.from('verband_schulstufen').delete().eq('verband_id', editTargetId).eq('stufe_key', stufeKey);
+  if (_aktive_stufe_key === stufeKey) _aktive_stufe_key = null;
+  await loadVerbandSchulstufen(editTargetId);
+  showToast('🗑 Schulstufe gelöscht');
+}
+
+// ── Laden & Rendern ──
+async function loadVerbandSchulstufen(verbandId) {
+  const { data: stufen } = await db.from('verband_schulstufen')
+    .select('id,stufe_key,stufe_label,reihenfolge').eq('verband_id', verbandId).order('reihenfolge');
+  const { data: faecher } = await db.from('verband_faecher')
+    .select('id,name,kuerzel,stufe_key,reihenfolge').eq('verband_id', verbandId).order('reihenfolge').order('name');
+  _verband_stufen = stufen || [];
+  window._verband_faecher = faecher || [];
+  if (_aktive_stufe_key === null && _verband_stufen.length > 0) _aktive_stufe_key = _verband_stufen[0].stufe_key;
+  renderStufenTabs();
+}
+
+function renderStufenTabs() {
+  const nav = document.getElementById('stufen-tabs-nav');
+  const content = document.getElementById('stufen-tabs-content');
+  if (!nav || !content) return;
+
+  if (_verband_stufen.length === 0) {
+    nav.innerHTML = '';
+    content.innerHTML = '<div style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">Noch keine Schulstufen erfasst — klicke auf «+ Schulstufe hinzufügen»</div>';
+    return;
+  }
+
+  // Tabs
+  nav.innerHTML = _verband_stufen.map(s =>
+    '<button onclick="switchStufenTab(\'' + s.stufe_key + '\')" style="padding:var(--space-2) var(--space-4);border-radius:var(--radius-full);font-size:var(--text-xs);font-weight:600;border:1px solid var(--color-border);cursor:pointer;transition:all var(--transition-interactive);background:'
+    + (_aktive_stufe_key === s.stufe_key ? 'var(--color-primary);color:#fff;border-color:var(--color-primary)' : 'var(--color-surface);color:var(--color-text-muted)')
+    + '">' + s.stufe_label + '</button>'
+  ).join('');
+
+  // Content for active tab
+  const stufe = _verband_stufen.find(s => s.stufe_key === _aktive_stufe_key);
+  if (!stufe) return;
+  const faecher = (window._verband_faecher || []).filter(f => f.stufe_key === _aktive_stufe_key);
+
+  const faecherRows = faecher.length === 0
+    ? '<tr><td colspan="3" style="text-align:center;padding:var(--space-6);color:var(--color-text-muted)">Keine Fächer erfasst</td></tr>'
+    : faecher.map((f,i) =>
+        '<tr>'
+        + '<td><div class="avatar-cell"><div class="table-avatar ' + (i%2?'accent':'') + '" style="font-size:var(--text-xs)">' + (f.kuerzel||f.name.substring(0,3).toUpperCase()) + '</div>'
+        + '<div class="cell-name">' + f.name + '</div></div></td>'
+        + '<td><span class="badge badge-muted">' + (f.kuerzel||'—') + '</span></td>'
+        + '<td style="display:flex;gap:4px">'
+        + '<button class="btn-sm btn-outline-sm" onclick="openFachModal(\'' + f.id + '\',\'' + _aktive_stufe_key + '\')">✏️</button>'
+        + '<button class="btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="deleteFach(\'' + f.id + '\')">🗑</button>'
+        + '</td></tr>'
+      ).join('');
+
+  content.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-4)">'
+    + '<span style="font-size:var(--text-sm);font-weight:600;color:var(--color-text)">' + stufe.stufe_label + '</span>'
+    + '<div style="display:flex;gap:var(--space-2)">'
+    + '<button class="btn-sm btn-accent-sm" onclick="openFachModal(null,\'' + _aktive_stufe_key + '\')">+ Fach</button>'
+    + '<button class="btn-danger btn-sm" style="padding:4px 10px;font-size:11px" onclick="deleteStufe(\'' + stufe.stufe_key + '\',\'' + stufe.stufe_label.replace(/'/g,"\\'") + '\')">Stufe löschen</button>'
+    + '</div></div>'
+    + '<table><thead><tr><th>Fach</th><th>Kürzel</th><th></th></tr></thead><tbody>' + faecherRows + '</tbody></table>';
+}
+
+function switchStufenTab(key) {
+  _aktive_stufe_key = key;
+  renderStufenTabs();
+}
+
+// ── Fach Modal (updated for stufe_key) ──
+function openFachModal(editId, stufeKey) {
   document.getElementById('fach-edit-id').value = editId || '';
+  document.getElementById('fach-stufe-key').value = stufeKey || _aktive_stufe_key || '';
   document.getElementById('fach-modal-title').textContent = editId ? 'Fach bearbeiten' : 'Fach erfassen';
   if (!editId) {
     document.getElementById('fach-name').value = '';
@@ -1198,23 +1333,24 @@ function closeFachModal() { document.getElementById('modal-fach').classList.remo
 
 async function saveFach() {
   const editId = document.getElementById('fach-edit-id').value;
+  const stufeKey = document.getElementById('fach-stufe-key').value;
   const payload = {
     name: document.getElementById('fach-name').value.trim(),
     kuerzel: document.getElementById('fach-kuerzel').value.trim().toUpperCase() || null,
-    verband_id: editTargetId
+    verband_id: editTargetId,
+    stufe_key: stufeKey
   };
   if (!payload.name) { alert('Bitte Fachname eingeben'); return; }
   if (!payload.verband_id) { alert('Kein Verband ausgewählt – bitte Seite neu laden.'); return; }
   if (editId) {
-    const { name, kuerzel } = payload;
-    const { error } = await db.from('verband_faecher').update({ name, kuerzel }).eq('id', editId);
-    if (error) { alert('Fehler beim Speichern: ' + error.message); return; }
+    const { error } = await db.from('verband_faecher').update({ name: payload.name, kuerzel: payload.kuerzel }).eq('id', editId);
+    if (error) { alert('Fehler: ' + error.message); return; }
   } else {
     const { error } = await db.from('verband_faecher').insert(payload);
     if (error) { alert('Fehler: ' + error.message); return; }
   }
   closeFachModal();
-  await loadVerbandFaecher(editTargetId);
+  await loadVerbandSchulstufen(editTargetId);
   showToast(editId ? '✅ Fach aktualisiert' : '✅ Fach erfasst');
 }
 
@@ -1225,8 +1361,9 @@ async function deleteFach(id) {
   const { error } = await db.from('verband_faecher').delete().eq('id', id);
   if (error) { alert('Fehler: ' + error.message); return; }
   showToast('🗑 Fach «' + name + '» gelöscht');
-  await loadVerbandFaecher(editTargetId);
+  await loadVerbandSchulstufen(editTargetId);
 }
+
 
 async function loadVerbandFaecher(verbandId) {
   const { data, error } = await db.from('verband_faecher')
@@ -1334,6 +1471,23 @@ async function loadVerbandFaecher(verbandId) {
 </div>
 
 <!-- FACH-MODAL -->
+<!-- SCHULSTUFEN-MODAL -->
+<div class="modal-overlay" id="modal-stufen">
+  <div class="modal" style="max-width:540px">
+    <div class="modal-header">
+      <span class="modal-title">Schulstufe hinzufügen</span>
+      <button class="icon-btn" onclick="closeStufenModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:var(--text-sm);color:var(--color-text-muted);margin-bottom:var(--space-3)">Wähle eine oder mehrere Schulstufen aus:</p>
+      <div id="stufen-auswahl" style="display:flex;flex-direction:column;gap:var(--space-2);max-height:380px;overflow-y:auto;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeStufenModal()">Abbrechen</button>
+      <button class="btn-sm btn-accent-sm" onclick="saveStufenAuswahl()">Hinzufügen</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-fach">
   <div class="modal">
     <div class="modal-header">
@@ -1342,6 +1496,7 @@ async function loadVerbandFaecher(verbandId) {
     </div>
     <div class="modal-body modal-grid">
       <input type="hidden" id="fach-edit-id"/>
+      <input type="hidden" id="fach-stufe-key"/>
       <div class="form-group" style="grid-column:1/-1"><label class="form-label">Fachname *</label><input class="form-input" id="fach-name" placeholder="z.B. Mathematik"/></div>
       <div class="form-group"><label class="form-label">Kürzel</label><input class="form-input" id="fach-kuerzel" placeholder="z.B. MAT" maxlength="6"/></div>
 
