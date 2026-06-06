@@ -1301,7 +1301,7 @@ async function savePerson(){
   // Reload LP table if we're in Verband detail
   if (editTargetId) {
     const v = VERBAENDE.find(x => x.id === editTargetId);
-    if (v) await showVbDetail(editTargetId);
+    await showVbDetail(editTargetId);
   }
 }
 
