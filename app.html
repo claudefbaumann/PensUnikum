@@ -1560,6 +1560,14 @@ async function loadFaecherDefaults(stufeKey) {
 }
 
 // ── Stufe CRUD ──
+
+function autoFillStufeKey(label) {
+  const keyEl = document.getElementById('stufe-admin-key');
+  if (!keyEl || keyEl.dataset.manuallyEdited) return;
+  keyEl.value = label.toLowerCase()
+    .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/–/g,'_')
+    .replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'').substring(0,20);
+}
 function openStufeAdminModal(editId) {
   document.getElementById('stufe-admin-edit-id').value = editId || '';
   document.getElementById('stufe-admin-modal-title').textContent = editId ? 'Schulstufe bearbeiten' : 'Neue Schulstufe';
@@ -1572,6 +1580,7 @@ function openStufeAdminModal(editId) {
   } else {
     document.getElementById('stufe-admin-label').value = '';
     document.getElementById('stufe-admin-key').value = '';
+    const _keyEl = document.getElementById('stufe-admin-key'); if(_keyEl) delete _keyEl.dataset.manuallyEdited;
 
   }
   document.getElementById('modal-stufe-admin').classList.add('active');
@@ -1581,8 +1590,16 @@ function closeStufeAdminModal() { document.getElementById('modal-stufe-admin').c
 async function saveStufeAdmin() {
   const editId   = document.getElementById('stufe-admin-edit-id').value;
   const label    = document.getElementById('stufe-admin-label').value.trim();
-  const key      = document.getElementById('stufe-admin-key').value.trim().toLowerCase().replace(/\s+/g,'_');
-  if (!label || !key) { alert('Bitte Bezeichnung und Schlüssel eingeben'); return; }
+  let   key      = document.getElementById('stufe-admin-key').value.trim().toLowerCase().replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
+  // Auto-generate key from label if empty
+  if (!key && label) {
+    key = label.toLowerCase()
+      .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/–/g,'_')
+      .replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'').substring(0,20);
+    document.getElementById('stufe-admin-key').value = key;
+  }
+  if (!label) { alert('Bitte Bezeichnung eingeben'); return; }
+  if (!key)   { alert('Kein gültiger Schlüssel generierbar – bitte manuell eingeben'); return; }
   if (editId) {
     const { error } = await db.from('schulstufen_master').update({ stufe_label: label, stufe_key: key }).eq('id', editId);
     if (error) { alert('Fehler: ' + error.message); return; }
@@ -1812,8 +1829,8 @@ async function deleteFachDefault(id, name) {
     </div>
     <div class="modal-body modal-grid">
       <input type="hidden" id="stufe-admin-edit-id"/>
-      <div class="form-group" style="grid-column:1/-1"><label class="form-label">Bezeichnung *</label><input class="form-input" id="stufe-admin-label" placeholder="z.B. Unterstufe – 3. Schuljahr"/></div>
-      <div class="form-group"><label class="form-label">Schlüssel (Key) *</label><input class="form-input" id="stufe-admin-key" placeholder="z.B. us3" maxlength="12"/></div>
+      <div class="form-group" style="grid-column:1/-1"><label class="form-label">Bezeichnung *</label><input class="form-input" id="stufe-admin-label" placeholder="z.B. Unterstufe – 3. Schuljahr" oninput="autoFillStufeKey(this.value)"/></div>
+      <div class="form-group"><label class="form-label">Schlüssel (Key) *</label><input class="form-input" id="stufe-admin-key" placeholder="z.B. us3" maxlength="12" oninput="this.dataset.manuallyEdited=this.value?'1':''" /></div>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeStufeAdminModal()">Abbrechen</button>
