@@ -1986,7 +1986,7 @@ function cycleHalbtag(btn) {
   btn.textContent = ICONS[next] + ' ' + LABELS[next];
   btn.title = LABELS[next];
   // Enable/disable slider wrap
-  const wrap = btn.parentElement ? btn.parentElement.querySelector('.ht-range-wrap') : null;
+  const wrap = btn.parentElement ? btn.parentElement.querySelector('.ht-time-wrap') : null;
   if (wrap) {
     wrap.style.opacity = next === 'nicht_verfuegbar' ? '0.35' : '1';
     wrap.style.pointerEvents = next === 'nicht_verfuegbar' ? 'none' : '';
