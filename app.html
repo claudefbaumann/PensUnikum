@@ -155,7 +155,7 @@
     @keyframes modalIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
     .modal-header{display:flex;align-items:center;justify-content:space-between;padding:var(--space-5) var(--space-6);border-bottom:1px solid var(--color-border);}
     .modal-title{font-size:var(--text-base);font-weight:700;}
-    .modal-body{padding:var(--space-6);overflow-y:auto;flex:1;}
+    .modal-body{padding:var(--space-6);overflow-y:auto;flex:1;min-height:0;}
     .modal-footer{display:flex;justify-content:flex-end;gap:var(--space-3);padding:var(--space-4) var(--space-6);border-top:1px solid var(--color-border);}
     .btn-danger{background:#c0392b;color:#fff;padding:var(--space-2) var(--space-5);border-radius:var(--radius-full);font-size:var(--text-sm);font-weight:600;transition:all var(--transition);}
     .btn-danger:hover{background:#a93226;}
@@ -549,12 +549,12 @@
           <button class="btn-sm btn-accent-sm" onclick="saveLpWuensche()">💾 Speichern</button>
         </div>
 
-        <div style="display:grid;gap:var(--space-6);max-width:700px;margin-top:var(--space-4)">
+        <div style="display:grid;gap:var(--space-6);max-width:760px;margin-top:var(--space-4)">
 
-          <!-- Pensum & Modus -->
+          <!-- 1. Pensum & Modus -->
           <div class="card">
-            <div class="card-header"><span class="card-title">Pensum</span></div>
-            <div style="padding:var(--space-5);display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-4)">
+            <div class="card-header"><span class="card-title">Pensum &amp; Modus</span></div>
+            <div style="padding:var(--space-5);display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-4)">
               <div class="form-group">
                 <label class="form-label">Minimum %</label>
                 <input class="form-input" type="number" id="wunsch-pensum-min" min="0" max="100" value="0" placeholder="0"/>
@@ -578,7 +578,46 @@
             </div>
           </div>
 
-          <!-- Schulstufen & Fächer -->
+          <!-- 2. Halbtag-Verfügbarkeit (Wochenraster) -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Verfügbarkeit nach Halbtag</span>
+              <span style="font-size:var(--text-xs);color:var(--color-text-muted)">✅ Verfügbar &nbsp;🚫 Nicht verfügbar &nbsp;⚠️ Falls nötig</span>
+            </div>
+            <div style="padding:var(--space-5);overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse;min-width:400px">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;font-size:var(--text-xs);color:var(--color-text-muted);padding:var(--space-2) var(--space-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em">Tag</th>
+                    <th style="text-align:center;font-size:var(--text-xs);color:var(--color-text-muted);padding:var(--space-2) var(--space-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em">🌅 Vormittag</th>
+                    <th style="text-align:center;font-size:var(--text-xs);color:var(--color-text-muted);padding:var(--space-2) var(--space-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em">🌆 Nachmittag</th>
+                  </tr>
+                </thead>
+                <tbody id="wunsch-halbtage-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 3. Zeitspannen (z.B. frühester Beginn / spätestes Ende) -->
+          <div class="card">
+            <div class="card-header"><span class="card-title">Zeitliche Einschränkungen</span></div>
+            <div style="padding:var(--space-5);display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
+              <div class="form-group">
+                <label class="form-label">Frühester Unterrichtsbeginn</label>
+                <input class="form-input" type="time" id="wunsch-zeit-von" value="07:30"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Spätestes Unterrichtsende</label>
+                <input class="form-input" type="time" id="wunsch-zeit-bis" value="17:00"/>
+              </div>
+              <div class="form-group" style="grid-column:1/-1">
+                <label class="form-label">Bemerkungen / Sonderwünsche</label>
+                <textarea class="form-input" id="wunsch-bemerkungen" rows="2" placeholder="z.B. Mittwochnachmittag frei, Präferenz Morgenklassen…"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Schulstufen & Fächer -->
           <div class="card">
             <div class="card-header">
               <span class="card-title">Schulstufen &amp; Fächer</span>
@@ -1815,9 +1854,12 @@ let _lp_wunsch_stufen = [];   // [{ id, stufe_key, stufe_label, ausgeschlossen, 
 async function loadLpWuensche() {
   const bid = window._current_user_id || window._benutzer_id;
   const vid = window._active_verband_id;
-  if (!bid || !vid) return;
+  if (!bid || !vid) {
+    document.getElementById('wunsch-stufen-container').innerHTML =
+      '<p style="color:var(--color-text-muted);font-size:var(--text-sm)">Bitte eine Lehrperson über den 🎯-Button öffnen.</p>';
+    return;
+  }
 
-  // Load Pensum/Modus
   const { data: w } = await db.from('lp_wuensche')
     .select('*').eq('benutzer_id', bid).eq('verband_id', vid).maybeSingle();
   _lp_wunsch_data = w;
@@ -1826,16 +1868,69 @@ async function loadLpWuensche() {
     document.getElementById('wunsch-pensum-max').value = w.pensum_max ?? 100;
     document.getElementById('wunsch-modus').value = w.modus || 'egal';
     document.getElementById('wunsch-max-klassen').value = w.max_klassen || '';
+    document.getElementById('wunsch-zeit-von').value = w.zeit_von ? w.zeit_von.substring(0,5) : '07:30';
+    document.getElementById('wunsch-zeit-bis').value = w.zeit_bis ? w.zeit_bis.substring(0,5) : '17:00';
+    document.getElementById('wunsch-bemerkungen').value = w.bemerkungen || '';
+    renderWunschHalbtage(w.halbtage || {});
+  } else {
+    renderWunschHalbtage({});
   }
 
-  // Load Stufen-Wünsche + Fächer
   const { data: stufen } = await db.from('lp_wunsch_stufen')
     .select('*, lp_wunsch_faecher(*)')
-    .eq('benutzer_id', bid).eq('verband_id', vid)
-    .order('stufe_label');
+    .eq('benutzer_id', bid).eq('verband_id', vid).order('stufe_label');
   _lp_wunsch_stufen = stufen || [];
-
   renderWunschStufen();
+}
+
+function renderWunschHalbtage(saved) {
+  const tage = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
+  const STATES = ['verfuegbar','nicht_verfuegbar','falls_noetig'];
+  const ICONS  = {verfuegbar:'✅', nicht_verfuegbar:'🚫', falls_noetig:'⚠️'};
+  const LABELS = {verfuegbar:'Verfügbar', nicht_verfuegbar:'Nicht verfügbar', falls_noetig:'Falls nötig'};
+
+  const tbody = document.getElementById('wunsch-halbtage-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = tage.map(tag => {
+    const vmKey = tag + '_vm';
+    const nmKey = tag + '_nm';
+    const vmState = saved[vmKey] || 'verfuegbar';
+    const nmState = saved[nmKey] || 'verfuegbar';
+    return '<tr style="border-top:1px solid var(--color-divider)">'
+      + '<td style="padding:var(--space-2) var(--space-3);font-size:var(--text-sm);font-weight:600">' + tag + '</td>'
+      + '<td style="text-align:center;padding:var(--space-2)">'
+      + '<button type="button" class="halbtag-btn" data-key="'+vmKey+'" data-state="'+vmState+'"'
+      + ' style="'+halbtagBtnStyle(vmState)+'"'
+      + ' onclick="cycleHalbtag(this)" title="'+LABELS[vmState]+'">'
+      + ICONS[vmState] + ' ' + LABELS[vmState]
+      + '</button></td>'
+      + '<td style="text-align:center;padding:var(--space-2)">'
+      + '<button type="button" class="halbtag-btn" data-key="'+nmKey+'" data-state="'+nmState+'"'
+      + ' style="'+halbtagBtnStyle(nmState)+'"'
+      + ' onclick="cycleHalbtag(this)" title="'+LABELS[nmState]+'">'
+      + ICONS[nmState] + ' ' + LABELS[nmState]
+      + '</button></td>'
+      + '</tr>';
+  }).join('');
+}
+
+function halbtagBtnStyle(state) {
+  const base = 'padding:4px 14px;border-radius:var(--radius-full);font-size:var(--text-xs);font-weight:600;cursor:pointer;border:1.5px solid;transition:all var(--transition-interactive);white-space:nowrap;';
+  if (state === 'verfuegbar')      return base + 'background:var(--color-success-highlight);border-color:var(--color-success);color:var(--color-success)';
+  if (state === 'nicht_verfuegbar') return base + 'background:var(--color-error-highlight);border-color:var(--color-error);color:var(--color-error)';
+  return base + 'background:var(--color-warning-highlight);border-color:var(--color-warning);color:var(--color-warning)';
+}
+
+function cycleHalbtag(btn) {
+  const STATES = ['verfuegbar','nicht_verfuegbar','falls_noetig'];
+  const ICONS  = {verfuegbar:'✅', nicht_verfuegbar:'🚫', falls_noetig:'⚠️'};
+  const LABELS = {verfuegbar:'Verfügbar', nicht_verfuegbar:'Nicht verfügbar', falls_noetig:'Falls nötig'};
+  const cur = btn.dataset.state;
+  const next = STATES[(STATES.indexOf(cur)+1) % STATES.length];
+  btn.dataset.state = next;
+  btn.style.cssText = halbtagBtnStyle(next);
+  btn.textContent = ICONS[next] + ' ' + LABELS[next];
+  btn.title = LABELS[next];
 }
 
 async function renderWunschStufen() {
@@ -1945,13 +2040,24 @@ async function cycleWunschFachPrio(chip, stufeKey, stufeLabel, fachName, fachKue
 async function saveLpWuensche() {
   const bid = window._current_user_id || window._benutzer_id;
   const vid = window._active_verband_id;
-  if (!bid || !vid) { alert('Kein Benutzer/Verband erkannt'); return; }
+  if (!bid || !vid) { alert('Bitte Lehrperson über den 🎯-Button öffnen'); return; }
+
+  // Collect halbtage from buttons
+  const halbtage = {};
+  document.querySelectorAll('#wunsch-halbtage-tbody .halbtag-btn').forEach(btn => {
+    halbtage[btn.dataset.key] = btn.dataset.state;
+  });
+
   const payload = {
     benutzer_id: bid, verband_id: vid,
     pensum_min: parseInt(document.getElementById('wunsch-pensum-min').value)||0,
     pensum_max: parseInt(document.getElementById('wunsch-pensum-max').value)||100,
     modus: document.getElementById('wunsch-modus').value,
     max_klassen: parseInt(document.getElementById('wunsch-max-klassen').value)||null,
+    halbtage,
+    zeit_von: document.getElementById('wunsch-zeit-von').value || null,
+    zeit_bis: document.getElementById('wunsch-zeit-bis').value || null,
+    bemerkungen: document.getElementById('wunsch-bemerkungen').value.trim() || null,
     aktualisiert_am: new Date().toISOString()
   };
   const { error } = await db.from('lp_wuensche').upsert(payload, { onConflict: 'benutzer_id,verband_id' });
