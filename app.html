@@ -1497,7 +1497,7 @@ async function saveFach() {
   if (!payload.name) { alert('Bitte Fachname eingeben'); return; }
   if (!payload.verband_id) { alert('Kein Verband ausgewählt – bitte Seite neu laden.'); return; }
   if (editId) {
-    const { error } = await db.from('verband_faecher').update({ name: payload.name, kuerzel: payload.kuerzel }).eq('id', editId);
+    const { error } = await db.from('verband_faecher').update({ name: payload.name, kuerzel: payload.kuerzel, prioritaet: payload.prioritaet, prioritaet_1: payload.prioritaet_1, prioritaet_2: payload.prioritaet_2 }).eq('id', editId);
     if (error) { alert('Fehler: ' + error.message); return; }
   } else {
     const { error } = await db.from('verband_faecher').insert(payload);
