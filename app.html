@@ -1584,10 +1584,10 @@ async function saveStufeAdmin() {
   const key      = document.getElementById('stufe-admin-key').value.trim().toLowerCase().replace(/\s+/g,'_');
   if (!label || !key) { alert('Bitte Bezeichnung und Schlüssel eingeben'); return; }
   if (editId) {
-    const { error } = await db.from('schulstufen_master').update({ stufe_label: label, stufe_key: key, reihenfolge }).eq('id', editId);
+    const { error } = await db.from('schulstufen_master').update({ stufe_label: label, stufe_key: key }).eq('id', editId);
     if (error) { alert('Fehler: ' + error.message); return; }
   } else {
-    const { error } = await db.from('schulstufen_master').insert({ stufe_key: key, stufe_label: label, reihenfolge });
+    const { error } = await db.from('schulstufen_master').insert({ stufe_key: key, stufe_label: label });
     if (error) { alert('Fehler: ' + error.message); return; }
   }
   closeStufeAdminModal();
@@ -1636,10 +1636,10 @@ async function saveFachDefault() {
   const kuerzel = document.getElementById('fach-default-kuerzel').value.trim().toUpperCase() || null;
   if (!name) { alert('Bitte Fachname eingeben'); return; }
   if (editId) {
-    const { error } = await db.from('faecher_defaults').update({ name, kuerzel, reihenfolge }).eq('id', editId);
+    const { error } = await db.from('faecher_defaults').update({ name, kuerzel }).eq('id', editId);
     if (error) { alert('Fehler: ' + error.message); return; }
   } else {
-    const { error } = await db.from('faecher_defaults').insert({ stufe_key: sk, name, kuerzel, reihenfolge });
+    const { error } = await db.from('faecher_defaults').insert({ stufe_key: sk, name, kuerzel });
     if (error) { alert('Fehler: ' + error.message); return; }
   }
   closeFachDefaultModal();
