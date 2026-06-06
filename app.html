@@ -1978,16 +1978,27 @@ function halbtagBtnStyle(state) {
   return base + 'background:var(--color-warning-highlight);border-color:var(--color-warning);color:var(--color-warning)';
 }
 
-function cycleHalbtag(btn) {
+function function cycleHalbtag(btn) {
   const STATES = ['verfuegbar','nicht_verfuegbar','falls_noetig'];
   const ICONS  = {verfuegbar:'✅', nicht_verfuegbar:'🚫', falls_noetig:'⚠️'};
   const LABELS = {verfuegbar:'Verfügbar', nicht_verfuegbar:'Nicht verfügbar', falls_noetig:'Falls nötig'};
   const cur = btn.dataset.state;
   const next = STATES[(STATES.indexOf(cur)+1) % STATES.length];
   btn.dataset.state = next;
-  btn.style.cssText = halbtagBtnStyle(next);
+  btn.style.cssText = halbtagBtnStyle(next) + ';width:100%;justify-content:center;display:flex';
   btn.textContent = ICONS[next] + ' ' + LABELS[next];
   btn.title = LABELS[next];
+  // Enable/disable slider wrap based on state
+  const wrap = btn.parentElement ? btn.parentElement.querySelector('.ht-range-wrap') : null;
+  if (wrap) {
+    if (next === 'nicht_verfuegbar') {
+      wrap.style.opacity = '0.35';
+      wrap.style.pointerEvents = 'none';
+    } else {
+      wrap.style.opacity = '1';
+      wrap.style.pointerEvents = '';
+    }
+  }
 }
 
 async function renderWunschStufen() {
