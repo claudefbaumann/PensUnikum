@@ -2042,6 +2042,14 @@ async function saveLpWuensche() {
   const vid = window._active_verband_id;
   if (!bid || !vid) { alert('Bitte Lehrperson über den 🎯-Button öffnen'); return; }
 
+  // Validate Pensum
+  const pMin = parseInt(document.getElementById('wunsch-pensum-min').value);
+  const pMax = parseInt(document.getElementById('wunsch-pensum-max').value);
+  if (isNaN(pMin) || pMin < 0 || pMin > 100) { alert('Minimum-Pensum muss zwischen 0 und 100 % liegen.'); document.getElementById('wunsch-pensum-min').focus(); return; }
+  if (isNaN(pMax) || pMax < 10 || pMax > 100) { alert('Maximum-Pensum muss zwischen 10 und 100 % liegen.'); document.getElementById('wunsch-pensum-max').focus(); return; }
+  if (pMin > pMax) { alert('Minimum-Pensum (' + pMin + '%) darf nicht grösser als Maximum-Pensum (' + pMax + '%) sein.'); document.getElementById('wunsch-pensum-min').focus(); return; }
+  if (pMax - pMin > 80) { if (!confirm('Sehr grosser Pensum-Bereich (' + pMin + '–' + pMax + '%). Stimmt das so?')) return; }
+
   // Collect halbtage from buttons
   const halbtage = {};
   document.querySelectorAll('#wunsch-halbtage-tbody .halbtag-btn').forEach(btn => {
@@ -2063,6 +2071,8 @@ async function saveLpWuensche() {
   const { error } = await db.from('lp_wuensche').upsert(payload, { onConflict: 'benutzer_id,verband_id' });
   if (error) { alert('Fehler: ' + error.message); return; }
   showToast('✅ Wünsche gespeichert');
+  // Return to Verband detail
+  if (editTargetId) showPanel('verbände');
 }
 
 
@@ -2256,7 +2266,6 @@ function closeSchulhausZuweisungModal() {
         </div>
         <div class="hint" id="mode-hint">Lehrperson erhält Zugang und kann eigene Wünsche selbst pflegen.</div>
       </div>
-      <div class="form-group"><label class="form-label">Notizen / Wünsche</label><textarea class="form-input" id="person-bemerkungen" rows="2" placeholder="z.B. Wunschpensum, freie Tage, Hinweise"></textarea></div>
       <label style="display:flex;gap:8px;align-items:flex-start;font-size:var(--text-sm);"><input type="checkbox" id="person-notify" checked /> Änderungen durch Schulleitung senden automatisch ein Infomail an die Lehrperson.</label>
     </div>
     <div class="modal-footer">
