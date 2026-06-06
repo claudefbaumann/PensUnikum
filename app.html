@@ -541,22 +541,56 @@
 
       <!-- ── LEHRPERSON WUNSCH ── -->
       <div id="panel-lp-wunsch" class="panel">
-        <div class="card">
-          <div class="card-header"><span class="card-title">Wünsche & Verfügbarkeiten erfassen</span></div>
-          <div style="padding:var(--space-6);display:grid;gap:var(--space-5);max-width:520px;">
-            <div class="form-group"><label class="form-label">Gewünschtes Pensum (Std./Woche)</label><input class="form-input" type="number" value="22" min="4" max="28"/></div>
-            <div class="form-group"><label class="form-label">Bevorzugte Stufe</label>
-              <select class="form-input"><option>Unterstufe (1.–2. Klasse)</option><option>Mittelstufe (3.–4. Klasse)</option><option selected>Oberstufe (5.–6. Klasse)</option></select>
-            </div>
-            <div class="form-group"><label class="form-label">Gewünschter freier Tag</label>
-              <select class="form-input"><option>Kein Wunsch</option><option>Montag</option><option>Dienstag</option><option selected>Mittwoch</option><option>Donnerstag</option><option>Freitag</option></select>
-            </div>
-            <div class="form-group"><label class="form-label">Bemerkungen / Weitere Wünsche</label><textarea class="form-input" rows="3" placeholder="Weitere Wünsche oder besondere Umstände..."></textarea></div>
-            <button class="btn-sm btn-accent-sm" style="width:fit-content;padding:var(--space-2) var(--space-8);">Wünsche speichern</button>
+        <div class="panel-header">
+          <div>
+            <h1 class="panel-title">Wünsche &amp; Einschränkungen</h1>
+            <p class="panel-subtitle">Pensum-Wunsch, bevorzugte Stufen und Fächer</p>
           </div>
+          <button class="btn-sm btn-accent-sm" onclick="saveLpWuensche()">💾 Speichern</button>
+        </div>
+
+        <div style="display:grid;gap:var(--space-6);max-width:700px;margin-top:var(--space-4)">
+
+          <!-- Pensum & Modus -->
+          <div class="card">
+            <div class="card-header"><span class="card-title">Pensum</span></div>
+            <div style="padding:var(--space-5);display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-4)">
+              <div class="form-group">
+                <label class="form-label">Minimum %</label>
+                <input class="form-input" type="number" id="wunsch-pensum-min" min="0" max="100" value="0" placeholder="0"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Maximum %</label>
+                <input class="form-input" type="number" id="wunsch-pensum-max" min="0" max="100" value="100" placeholder="100"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Modus</label>
+                <select class="form-input" id="wunsch-modus">
+                  <option value="egal">Egal</option>
+                  <option value="vollzeit">Vollzeit</option>
+                  <option value="teilzeit">Teilzeit</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Max. Klassen</label>
+                <input class="form-input" type="number" id="wunsch-max-klassen" min="1" max="10" placeholder="—"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- Schulstufen & Fächer -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Schulstufen &amp; Fächer</span>
+              <span style="font-size:var(--text-xs);color:var(--color-text-muted)">✅ Gewünscht &nbsp;❌ Ausgeschlossen</span>
+            </div>
+            <div id="wunsch-stufen-container" style="padding:var(--space-4);display:grid;gap:var(--space-3)">
+              <div style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">Lädt…</div>
+            </div>
+          </div>
+
         </div>
       </div>
-
 
       <!-- ══ PANEL: SCHULSTUFEN-ADMIN ══ -->
       <div id="panel-schulstufen-admin" class="panel">
@@ -1283,7 +1317,8 @@ async function saveStufenAuswahl() {
     const faecherSrc = (dbFaecher && dbFaecher.length) ? dbFaecher
       : (STUFEN_MASTER.find(s=>s.key===key)||{faecher:[]}).faecher.map((f,i)=>({name:f.name,kuerzel:f.kuerzel,reihenfolge:i}));
     const faecherInsert = faecherSrc.map((f,i) => ({
-      verband_id: editTargetId, stufe_key: key, name: f.name, kuerzel: f.kuerzel, reihenfolge: f.reihenfolge ?? i
+      verband_id: editTargetId, stufe_key: key, name: f.name, kuerzel: f.kuerzel,
+      reihenfolge: f.reihenfolge ?? i, prioritaet: f.prioritaet ?? 2
     }));
     if (faecherInsert.length) await db.from('verband_faecher').insert(faecherInsert);
   }
@@ -1344,6 +1379,7 @@ function renderStufenTabs() {
         + '<td><div class="avatar-cell"><div class="table-avatar ' + (i%2?'accent':'') + '" style="font-size:var(--text-xs)">' + (f.kuerzel||f.name.substring(0,3).toUpperCase()) + '</div>'
         + '<div class="cell-name">' + f.name + '</div></div></td>'
         + '<td><span class="badge badge-muted">' + (f.kuerzel||'—') + '</span></td>'
+        + '<td>'+(f.prioritaet===1?'🔵':f.prioritaet===3?'⚪':'🟡')+'</td>'
         + '<td style="display:flex;gap:4px">'
         + '<button class="btn-sm btn-outline-sm" onclick="openFachModal(\'' + f.id + '\',\'' + _aktive_stufe_key + '\')">✏️</button>'
         + '<button class="btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="deleteFach(\'' + f.id + '\')">🗑</button>'
@@ -1357,7 +1393,7 @@ function renderStufenTabs() {
     + '<button class="btn-sm btn-accent-sm" onclick="openFachModal(null,\'' + _aktive_stufe_key + '\')">+ Fach</button>'
     + '<button class="btn-danger btn-sm" style="padding:4px 10px;font-size:11px" onclick="deleteStufe(\'' + stufe.stufe_key + '\',\'' + stufe.stufe_label.replace(/'/g,"\\'") + '\')">Stufe löschen</button>'
     + '</div></div>'
-    + '<table><thead><tr><th>Fach</th><th>Kürzel</th><th></th></tr></thead><tbody>' + faecherRows + '</tbody></table>';
+    + '<table><thead><tr><th>Fach</th><th>Kürzel</th><th>Prio</th><th></th></tr></thead><tbody>' + faecherRows + '</tbody></table>';
 }
 
 function switchStufenTab(key) {
@@ -1379,6 +1415,7 @@ async function openFachModal(editId, stufeKey) {
     if (f) {
       document.getElementById('fach-name').value = f.name || '';
       document.getElementById('fach-kuerzel').value = f.kuerzel || '';
+      document.getElementById('fach-prioritaet').value = f.prioritaet||2;
     }
   }
   // Schnellauswahl
@@ -1435,7 +1472,8 @@ async function saveFach() {
     name: document.getElementById('fach-name').value.trim(),
     kuerzel: document.getElementById('fach-kuerzel').value.trim().toUpperCase() || null,
     verband_id: editTargetId,
-    stufe_key: stufeKey
+    stufe_key: stufeKey,
+    prioritaet: parseInt(document.getElementById('fach-prioritaet').value)||2
   };
   if (!payload.name) { alert('Bitte Fachname eingeben'); return; }
   if (!payload.verband_id) { alert('Kein Verband ausgewählt – bitte Seite neu laden.'); return; }
@@ -1637,6 +1675,7 @@ function openFachDefaultModal(editId, stufeKey) {
     if (f) {
       document.getElementById('fach-default-name').value = f.name || '';
       document.getElementById('fach-default-kuerzel').value = f.kuerzel || '';
+      document.getElementById('fach-default-prioritaet').value = f.prioritaet||2;
     }
   } else {
     document.getElementById('fach-default-name').value = '';
@@ -1651,12 +1690,13 @@ async function saveFachDefault() {
   const sk     = document.getElementById('fach-default-stufe-key').value;
   const name   = document.getElementById('fach-default-name').value.trim();
   const kuerzel = document.getElementById('fach-default-kuerzel').value.trim().toUpperCase() || null;
+  const prioritaet = parseInt(document.getElementById('fach-default-prioritaet').value)||2;
   if (!name) { alert('Bitte Fachname eingeben'); return; }
   if (editId) {
-    const { error } = await db.from('faecher_defaults').update({ name, kuerzel }).eq('id', editId);
+    const { error } = await db.from('faecher_defaults').update({ name, kuerzel, prioritaet }).eq('id', editId);
     if (error) { alert('Fehler: ' + error.message); return; }
   } else {
-    const { error } = await db.from('faecher_defaults').insert({ stufe_key: sk, name, kuerzel });
+    const { error } = await db.from('faecher_defaults').insert({ stufe_key: sk, name, kuerzel, prioritaet });
     if (error) { alert('Fehler: ' + error.message); return; }
   }
   closeFachDefaultModal();
@@ -1669,6 +1709,158 @@ async function deleteFachDefault(id, name) {
   await db.from('faecher_defaults').delete().eq('id', id);
   await loadFaecherDefaults(_admin_selected_stufe_key);
   showToast('🗑 Fach «' + name + '» gelöscht');
+}
+
+
+// ══ LP WÜNSCHE ══
+let _lp_wunsch_data = null;   // { pensum_min, pensum_max, modus, max_klassen }
+let _lp_wunsch_stufen = [];   // [{ id, stufe_key, stufe_label, ausgeschlossen, faecher:[...] }]
+
+async function loadLpWuensche() {
+  const bid = window._current_user_id || window._benutzer_id;
+  const vid = window._active_verband_id;
+  if (!bid || !vid) return;
+
+  // Load Pensum/Modus
+  const { data: w } = await db.from('lp_wuensche')
+    .select('*').eq('benutzer_id', bid).eq('verband_id', vid).maybeSingle();
+  _lp_wunsch_data = w;
+  if (w) {
+    document.getElementById('wunsch-pensum-min').value = w.pensum_min ?? 0;
+    document.getElementById('wunsch-pensum-max').value = w.pensum_max ?? 100;
+    document.getElementById('wunsch-modus').value = w.modus || 'egal';
+    document.getElementById('wunsch-max-klassen').value = w.max_klassen || '';
+  }
+
+  // Load Stufen-Wünsche + Fächer
+  const { data: stufen } = await db.from('lp_wunsch_stufen')
+    .select('*, lp_wunsch_faecher(*)')
+    .eq('benutzer_id', bid).eq('verband_id', vid)
+    .order('stufe_label');
+  _lp_wunsch_stufen = stufen || [];
+
+  renderWunschStufen();
+}
+
+async function renderWunschStufen() {
+  const container = document.getElementById('wunsch-stufen-container');
+  if (!container) return;
+
+  // Load all Verband-Stufen as base
+  const vid = window._active_verband_id;
+  const { data: verbandStufen } = await db.from('verband_schulstufen')
+    .select('stufe_key, stufe_label').eq('verband_id', vid).order('stufe_label');
+  if (!verbandStufen || !verbandStufen.length) {
+    container.innerHTML = '<p style="color:var(--color-text-muted);font-size:var(--text-sm);padding:var(--space-4)">Keine Schulstufen beim Verband erfasst.</p>';
+    return;
+  }
+
+  container.innerHTML = '';
+  for (const vs of verbandStufen) {
+    const wStufe = _lp_wunsch_stufen.find(s => s.stufe_key === vs.stufe_key);
+    const ausgeschlossen = wStufe?.ausgeschlossen || false;
+    const gewuenscht = wStufe && !ausgeschlossen;
+
+    // Load Fächer for this Stufe from verband_faecher
+    const { data: verbandFaecher } = await db.from('verband_faecher')
+      .select('name, kuerzel, prioritaet').eq('verband_id', vid).eq('stufe_key', vs.stufe_key).order('name');
+
+    const stufeDiv = document.createElement('div');
+    stufeDiv.style.cssText = 'border:1px solid var(--color-border);border-radius:var(--radius-lg);overflow:hidden';
+
+    // Header row
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);background:var(--color-surface-offset);cursor:pointer;user-select:none';
+    header.innerHTML = `
+      <button type="button" onclick="toggleWunschStufe('${vs.stufe_key}','${vs.stufe_label.replace(/'/g,'\'')}',false)"
+        style="width:28px;height:28px;border-radius:var(--radius-sm);border:2px solid ${gewuenscht?'var(--color-primary)':'var(--color-border)'};background:${gewuenscht?'var(--color-primary)':'transparent'};color:#fff;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all var(--transition-interactive)"
+        title="Gewünscht">${gewuenscht?'✅':''}</button>
+      <span style="flex:1;font-weight:600;font-size:var(--text-sm)">${vs.stufe_label}</span>
+      <button type="button" onclick="toggleWunschStufe('${vs.stufe_key}','${vs.stufe_label.replace(/'/g,'\'')}',true)"
+        style="width:28px;height:28px;border-radius:var(--radius-sm);border:2px solid ${ausgeschlossen?'var(--color-error)':'var(--color-border)'};background:${ausgeschlossen?'var(--color-error)':'transparent'};color:#fff;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all var(--transition-interactive)"
+        title="Ausgeschlossen">${ausgeschlossen?'❌':''}</button>`;
+    stufeDiv.appendChild(header);
+
+    // Fächer chips (only when Gewünscht)
+    if (gewuenscht && verbandFaecher && verbandFaecher.length) {
+      const faecherDiv = document.createElement('div');
+      faecherDiv.style.cssText = 'padding:var(--space-3) var(--space-4);display:flex;flex-wrap:wrap;gap:var(--space-2);border-top:1px solid var(--color-border)';
+      for (const f of verbandFaecher) {
+        const wFach = wStufe?.lp_wunsch_faecher?.find(wf => wf.fach_name === f.name);
+        const prio = wFach?.prioritaet ?? f.prioritaet ?? 2;
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.dataset.stufeKey = vs.stufe_key;
+        chip.dataset.stufeLable = vs.stufe_label;
+        chip.dataset.fachName = f.name;
+        chip.dataset.fachKuerzel = f.kuerzel || '';
+        chip.dataset.prio = prio;
+        const prioIcon = prio===1?'🔵':prio===3?'⚪':'🟡';
+        chip.innerHTML = prioIcon + ' ' + (f.kuerzel||f.name.substring(0,4));
+        chip.title = f.name + ' – Priorität ' + prio + ' (klicken zum Wechseln)';
+        chip.style.cssText = 'padding:2px 10px;border-radius:999px;font-size:0.78rem;border:1px solid var(--color-border);background:var(--color-surface);cursor:pointer;transition:all 150ms ease';
+        chip.addEventListener('click', () => cycleWunschFachPrio(chip, vs.stufe_key, vs.stufe_label, f.name, f.kuerzel));
+        faecherDiv.appendChild(chip);
+      }
+      stufeDiv.appendChild(faecherDiv);
+    }
+    container.appendChild(stufeDiv);
+  }
+}
+
+async function toggleWunschStufe(stufeKey, stufeLabel, setAusgeschlossen) {
+  const bid = window._current_user_id || window._benutzer_id;
+  const vid = window._active_verband_id;
+  const existing = _lp_wunsch_stufen.find(s => s.stufe_key === stufeKey);
+
+  if (existing) {
+    const newVal = existing.ausgeschlossen === setAusgeschlossen ? null : setAusgeschlossen;
+    if (newVal === null) {
+      await db.from('lp_wunsch_stufen').delete().eq('id', existing.id);
+    } else {
+      await db.from('lp_wunsch_stufen').update({ ausgeschlossen: newVal }).eq('id', existing.id);
+    }
+  } else {
+    await db.from('lp_wunsch_stufen').insert({ benutzer_id: bid, verband_id: vid, stufe_key: stufeKey, stufe_label: stufeLabel, ausgeschlossen: setAusgeschlossen });
+  }
+  await loadLpWuensche();
+}
+
+async function cycleWunschFachPrio(chip, stufeKey, stufeLabel, fachName, fachKuerzel) {
+  const bid = window._current_user_id || window._benutzer_id;
+  const vid = window._active_verband_id;
+  let prio = parseInt(chip.dataset.prio) || 2;
+  prio = prio >= 3 ? 1 : prio + 1;
+
+  const wStufe = _lp_wunsch_stufen.find(s => s.stufe_key === stufeKey);
+  if (!wStufe) return;
+  const wFach = wStufe.lp_wunsch_faecher?.find(wf => wf.fach_name === fachName);
+  if (wFach) {
+    await db.from('lp_wunsch_faecher').update({ prioritaet: prio }).eq('id', wFach.id);
+  } else {
+    await db.from('lp_wunsch_faecher').insert({ lp_wunsch_stufe_id: wStufe.id, fach_name: fachName, fach_kuerzel: fachKuerzel||null, prioritaet: prio });
+  }
+  chip.dataset.prio = prio;
+  const prioIcon = prio===1?'🔵':prio===3?'⚪':'🟡';
+  chip.innerHTML = prioIcon + ' ' + (fachKuerzel||fachName.substring(0,4));
+  chip.title = fachName + ' – Priorität ' + prio + ' (klicken zum Wechseln)';
+}
+
+async function saveLpWuensche() {
+  const bid = window._current_user_id || window._benutzer_id;
+  const vid = window._active_verband_id;
+  if (!bid || !vid) { alert('Kein Benutzer/Verband erkannt'); return; }
+  const payload = {
+    benutzer_id: bid, verband_id: vid,
+    pensum_min: parseInt(document.getElementById('wunsch-pensum-min').value)||0,
+    pensum_max: parseInt(document.getElementById('wunsch-pensum-max').value)||100,
+    modus: document.getElementById('wunsch-modus').value,
+    max_klassen: parseInt(document.getElementById('wunsch-max-klassen').value)||null,
+    aktualisiert_am: new Date().toISOString()
+  };
+  const { error } = await db.from('lp_wuensche').upsert(payload, { onConflict: 'benutzer_id,verband_id' });
+  if (error) { alert('Fehler: ' + error.message); return; }
+  showToast('✅ Wünsche gespeichert');
 }
 
 </script>
@@ -1787,6 +1979,7 @@ async function deleteFachDefault(id, name) {
       <div style="border-top:1px solid var(--color-border);padding-top:var(--space-4);display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
         <div class="form-group" style="grid-column:1/-1"><label class="form-label">Fachname *</label><input class="form-input" id="fach-name" placeholder="z.B. Mathematik"/></div>
         <div class="form-group"><label class="form-label">Kürzel</label><input class="form-input" id="fach-kuerzel" placeholder="z.B. MA" maxlength="6"/></div>
+        <div class="form-group"><label class="form-label">Priorität</label><select class="form-input" id="fach-prioritaet"><option value="1">🔵 1 – Kernfach</option><option value="2" selected>🟡 2 – Ergänzungsfach</option><option value="3">⚪ 3 – Wahlfach</option></select></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1851,6 +2044,7 @@ async function deleteFachDefault(id, name) {
       <input type="hidden" id="fach-default-stufe-key"/>
       <div class="form-group" style="grid-column:1/-1"><label class="form-label">Fachname *</label><input class="form-input" id="fach-default-name" placeholder="z.B. Mathematik"/></div>
       <div class="form-group"><label class="form-label">Kürzel</label><input class="form-input" id="fach-default-kuerzel" placeholder="z.B. MA" maxlength="6"/></div>
+      <div class="form-group"><label class="form-label">Priorität</label><select class="form-input" id="fach-default-prioritaet"><option value="1">🔵 1 – Kernfach</option><option value="2" selected>🟡 2 – Ergänzungsfach</option><option value="3">⚪ 3 – Wahlfach</option></select></div>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeFachDefaultModal()">Abbrechen</button>
