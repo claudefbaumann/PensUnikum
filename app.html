@@ -1340,7 +1340,7 @@ async function loadVerbandSchulstufen(verbandId) {
   const { data: stufen } = await db.from('verband_schulstufen')
     .select('id,stufe_key,stufe_label,reihenfolge').eq('verband_id', verbandId).order('reihenfolge');
   const { data: faecher } = await db.from('verband_faecher')
-    .select('id,name,kuerzel,stufe_key,reihenfolge').eq('verband_id', verbandId).order('reihenfolge').order('name');
+    .select('id,name,kuerzel,stufe_key,reihenfolge,prioritaet,prioritaet_1,prioritaet_2').eq('verband_id', verbandId).order('reihenfolge').order('name');
   _verband_stufen = stufen || [];
   window._verband_faecher = faecher || [];
   if (_aktive_stufe_key === null && _verband_stufen.length > 0) _aktive_stufe_key = _verband_stufen[0].stufe_key;
