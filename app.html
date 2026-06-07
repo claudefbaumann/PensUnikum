@@ -1136,8 +1136,7 @@ async function loadSchulhaeuser(verbandId) {
       + '<td><div class="avatar-cell"><div class="table-avatar ' + (i%2===1?'accent':'') + '">'
       + sh.name.substring(0,2).toUpperCase() + '</div>'
       + '<div class="cell-name">' + sh.name + '</div></div></td>'
-      + '<td><button class="btn-sm btn-outline-sm" onclick="loadKlassen(\''+sh.id+'\',\''+sh.name+'\')">Klassen anzeigen</button></td>'
-      + '<td style="display:flex;gap:4px"><button class="btn-sm btn-outline-sm" onclick="openSchulhausModal(\''+sh.id+'\')">✏️</button></td>'
+      + '<td style="display:flex;gap:4px">'+ '<button class="btn-sm btn-outline-sm" onclick="loadRaeume(\''+sh.id+'\',\''+sh.name+'\')">🚪 Räume</button>'+ '<button class="btn-sm btn-outline-sm" onclick="loadKlassen(\''+sh.id+'\',\''+sh.name+'\')">Klassen</button>'+ '<button class="btn-sm btn-outline-sm" onclick="openSchulhausModal(\''+sh.id+'\')">✏️</button>'+ '</td>'
       + '</tr>';
   }).join('');
 }
@@ -1147,9 +1146,11 @@ async function loadSchulhaeuser(verbandId) {
 let _raeume = [];
 
 async function loadRaeume(schulhausId, schulhausName) {
+  currentSchulhausId = schulhausId;
   const card = document.getElementById('vb-raeume-card');
   document.getElementById('vb-raeume-title').textContent = 'Schulräume — ' + (schulhausName || '');
   card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   const tbody = document.getElementById('vb-detail-raeume');
   tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:12px;color:var(--color-text-muted)">Lädt…</td></tr>';
   const { data, error } = await db.from('schulraeume').select('id,bezeichnung').eq('schulhaus_id', schulhausId).eq('aktiv', true).order('bezeichnung');
@@ -1287,7 +1288,6 @@ async function loadKlassen(schulhausId, schulhausName) {
   const card = document.getElementById('vb-klassen-card');
   card.style.display = 'block';
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  await loadRaeume(schulhausId, schulhausName);
   const tbody = document.getElementById('vb-detail-klassen');
   tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--color-text-muted)">Lädt…</td></tr>';
   const { data, error } = await db.from('schulklassen').select('id,bezeichnung,stufe,stufe_key,schuljahr,schulhaus_id,zuweisung_modus,verband_id,homebase_raum_id,schulraeume(bezeichnung)').eq('schulhaus_id', schulhausId).order('bezeichnung');
