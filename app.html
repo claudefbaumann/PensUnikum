@@ -3123,7 +3123,19 @@ function renderStundenplan() {
     for (let t = 0; t < TAGE; t++) {
       const z = zellen[t][l];
       if (z && z.skip) continue;
-      const rowspan = (z && z.doppel) ? ' rowspan="2"' : '';
+      // For doppel cells: rowspan must include any pause rows between l and l+1
+      let doppelRowspan = 2;
+      if (z && z.doppel) {
+        const vid2r = window._sp_current_vid || editTargetId || window._active_verband_id || window._last_verband_id;
+        const apR = (typeof _sp_pausen_map !== 'undefined' && _sp_pausen_map[vid2r]) ? _sp_pausen_map[vid2r]
+          : ((typeof VERBAENDE !== 'undefined' && VERBAENDE.find(x=>x.id===vid2r)?.pausen) || []);
+        const t2mR = t => { const[h,m]=(t||'00:00').split(':'); return (+h)*60+(+m); };
+        const endL  = startMins + (l-1)*(lektMin+pauseMin) + lektMin;
+        const endL1 = startMins + l*(lektMin+pauseMin) + lektMin;
+        const pausesBetween = apR.filter(p => t2mR(p.von) > endL && t2mR(p.von) <= endL1).length;
+        doppelRowspan = 2 + pausesBetween;
+      }
+      const rowspan = (z && z.doppel) ? ' rowspan="'+doppelRowspan+'"' : '';
       const ht = (z && z.doppel) ? rowH*2+1 : rowH;
       if (z && z.fach) {
         const f = z.fach;
