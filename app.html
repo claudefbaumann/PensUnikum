@@ -1666,14 +1666,24 @@ async function loadLpKlassenRollen(benutzerId, explicitVid) {
 }
 
 function renderLpKlassenRollenList() {
-  const list = document.getElementById('lp-klassen-rollen-list');
+  // Target the visible list div (works for both erfassen + bearbeiten modals)
+  const list = document.getElementById('lp-klassen-rollen-list') ||
+               document.getElementById('lp-klassen-rollen-list-erfassen');
   if (!list) return;
+  // If bearbeiten modal is active, prefer that div
+  const bearbeitenModal = document.getElementById('modal-lp-edit');
+  const erfassenModal = document.getElementById('modal-person');
+  const activeList = (bearbeitenModal && bearbeitenModal.classList.contains('active'))
+    ? (document.getElementById('lp-klassen-rollen-list') || list)
+    : (erfassenModal && erfassenModal.classList.contains('active'))
+    ? (document.getElementById('lp-klassen-rollen-list-erfassen') || list)
+    : list;
   if (_lp_klassen_rollen_rows.length === 0) {
-    list.innerHTML = '<div style="font-size:var(--text-xs);color:var(--color-text-muted);padding:var(--space-2) 0">Noch keine Klassen zugeordnet</div>';
+    activeList.innerHTML = '<div style="font-size:var(--text-xs);color:var(--color-text-muted);padding:var(--space-2) 0">Noch keine Klassen zugeordnet</div>';
     return;
   }
   if (_alle_klassen_vb.length === 0) {
-    list.innerHTML = '<div style="font-size:var(--text-xs);color:var(--color-error);padding:var(--space-2) 0">⚠️ Keine Klassen gefunden — bitte zuerst Schulhaus und Klassen erfassen.</div>';
+    activeList.innerHTML = '<div style="font-size:var(--text-xs);color:var(--color-error);padding:var(--space-2) 0">⚠️ Keine Klassen gefunden — bitte zuerst Schulhaus und Klassen erfassen.</div>';
     return;
   }
   const klassenOpts = _alle_klassen_vb.map(k => {
@@ -1682,7 +1692,7 @@ function renderLpKlassenRollenList() {
   const rollenOpts = LP_ROLLEN_OPTIONEN.map(r =>
     '<option value="' + r.key + '">' + r.label + '</option>'
   ).join('');
-  list.innerHTML = _lp_klassen_rollen_rows.map(function(row, idx) {
+  activeList.innerHTML = _lp_klassen_rollen_rows.map(function(row, idx) {
     const kSel = '<select class="form-input" style="flex:1.2;font-size:var(--text-xs);padding:4px 6px"'
       + ' onchange="lpKlasseRowChange(' + idx + ',\'klasse_id\',this.value)">'
       + '<option value="">– Klasse –</option>'
@@ -2738,7 +2748,7 @@ function closeSchulhausZuweisungModal() {
           <span style="font-size:var(--text-sm);font-weight:600">Klassen &amp; Rollen</span>
           <button class="btn-sm btn-accent-sm" type="button" onclick="addLpKlasseRow()">+ Klasse hinzufügen</button>
         </div>
-        <div id="lp-klassen-rollen-list" style="display:flex;flex-direction:column;gap:var(--space-2)"></div>
+        <div id="lp-klassen-rollen-list-erfassen" style="display:flex;flex-direction:column;gap:var(--space-2)"></div>
       </div>
     </div>
     <div class="modal-footer">
