@@ -1205,6 +1205,7 @@ async function loadKlasseFaecher(klasseId, klasseName) {
 async function openFachModal(editId) {
   document.getElementById('fach-edit-id').value = editId || '';
   document.getElementById('fach-klasse-id').value = _current_klasse_id || '';
+  console.log('openFachModal: klasse_id=', _current_klasse_id, 'editId=', editId);
   document.getElementById('fach-modal-title').textContent = editId ? 'Fach bearbeiten' : 'Fach erfassen';
 
   // Load LPs for this Klasse from lp_klassen_rollen
@@ -1238,9 +1239,10 @@ function closeFachModal() { document.getElementById('modal-fach').classList.remo
 
 async function saveFach() {
   const editId = document.getElementById('fach-edit-id').value;
-  const klasseId = document.getElementById('fach-klasse-id').value;
+  const klasseId = document.getElementById('fach-klasse-id').value || _current_klasse_id;
   const name = document.getElementById('fach-name').value.trim();
   if (!name) { alert('Bitte Fachbezeichnung eingeben'); return; }
+  if (!klasseId) { alert('Keine Klasse ausgewählt'); return; }
   const lekt = parseInt(document.getElementById('fach-lektionen').value) || 2;
   const doppel = parseInt(document.getElementById('fach-doppel').value) || 0;
   const lpId = document.getElementById('fach-lp').value || null;
@@ -1253,10 +1255,10 @@ async function saveFach() {
   };
   if (editId) {
     const { error } = await db.from('klassen_faecher').update(payload).eq('id', editId);
-    if (error) { alert('Fehler: ' + error.message); return; }
+    if (error) { alert('Fehler beim Aktualisieren: ' + error.message); return; }
   } else {
     const { error } = await db.from('klassen_faecher').insert(payload);
-    if (error) { alert('Fehler: ' + error.message); return; }
+    if (error) { alert('Fehler beim Erfassen: ' + error.message); return; }
   }
   closeFachModal();
   await loadKlasseFaecher(klasseId, _current_klasse_name);
