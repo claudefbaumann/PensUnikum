@@ -2931,7 +2931,7 @@ async function loadStundenplan() {
 
   // Fächer der Klasse laden
   const { data: faecher } = await db.from('klassen_faecher')
-    .select('id,fach_name,lektionen_pro_woche,doppellektionen_pro_woche,benutzer_id,benutzer:benutzer_id(vorname,nachname)')
+    .select('id,fach_name,lektionen_pro_woche,doppellektionen_pro_woche,benutzer_id,schulhaus_id,benutzer:benutzer_id(vorname,nachname),schulhaus:schulhaus_id(name)')
     .eq('schulklasse_id', klasseId);
   _sp_faecher = faecher || [];
 
@@ -2971,6 +2971,7 @@ function printStundenplan() {
 }
 
 function renderStundenplan() {
+  console.log('[SP] faecher sample:', _sp_faecher[0]);
   if (!_sp_faecher.length) {
     document.getElementById('sp-grid-wrap').innerHTML =
       '<p style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">Für diese Klasse sind noch keine Fächer erfasst.</p>';
