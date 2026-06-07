@@ -371,6 +371,9 @@
                   <option value="inaktiv">Inaktiv</option>
                 </select>
               </div>
+              <div class="form-group"><label class="form-label">Lektionslänge (Minuten)</label>
+                <input class="form-input" type="number" id="vb-lektionslaenge" value="45" min="30" max="90" step="5" style="max-width:120px"/>
+              </div>
               <hr style="border:none;border-top:1px solid var(--color-divider);"/>
               <div style="font-size:var(--text-sm);font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.05em;">Lehrpersonen-Erfassung</div>
               <div class="form-group">
@@ -463,6 +466,17 @@
             <table>
               <thead><tr><th>Bezeichnung</th><th></th></tr></thead>
               <tbody id="vb-detail-raeume"></tbody>
+            </table>
+          </div>
+          <!-- ── FÄCHER CARD ── -->
+          <div id="vb-faecher-card" style="margin-top:var(--space-6);display:none">
+            <div class="card-header">
+              <span class="card-title" id="vb-faecher-title">Fächer &amp; Lektionen</span>
+              <button class="btn-sm btn-accent-sm" onclick="openFachModal()">+ Fach hinzufügen</button>
+            </div>
+            <table>
+              <thead><tr><th>Fach</th><th>Lehrperson</th><th>Lekt./Woche</th><th>Doppellekt./Woche</th><th></th></tr></thead>
+              <tbody id="vb-detail-faecher"></tbody>
             </table>
           </div>
 
@@ -783,6 +797,7 @@ async function saveVerbandDB(data, editId) {
     name: data.name, kuerzel: data.kuerzel, domain: data.domain,
     schulhaeuser: data.schulhaeuser, sl_name: data.slName,
     sl_email: data.slEmail, status: data.status,
+    lektionslaenge_min: data.lektionslaenge || 45,
     aktualisiert_am: new Date().toISOString()
   };
   if (editId) {
@@ -931,6 +946,7 @@ async function showVbDetail(id) {
   document.getElementById('vb-detail-grid').innerHTML =
     '<div class="detail-item"><div class="detail-label">Schulhäuser</div><div class="detail-value">' + v.schulhaeuser + '</div></div>'
     + '<div class="detail-item"><div class="detail-label">Lehrpersonen</div><div class="detail-value">' + v.lehrpersonen + '</div></div>'
+    + '<div class="detail-item"><div class="detail-label">Lektionslänge</div><div class="detail-value">' + (v.lektionslaenge_min || 45) + ' Min.</div></div>'
     + '<div class="detail-item"><div class="detail-label">Domain</div><div class="detail-value">' + (v.domain||'—') + '</div></div>'
     + '<div class="detail-item"><div class="detail-label">Verbandsleitung</div><div class="detail-value">' + v.slName + '</div></div>'
     + '<div class="detail-item"><div class="detail-label">E-Mail</div><div class="detail-value" style="font-size:var(--text-sm)">' + v.slEmail + '</div></div>'
@@ -993,6 +1009,8 @@ function editVerbandById(id) {
   document.getElementById('vb-status').value = v.status;
   const lpModusEl = document.getElementById('vb-lp-modus');
   if (lpModusEl) lpModusEl.value = v.lpModus || 'gemischt';
+  const llEl = document.getElementById('vb-lektionslaenge');
+  if (llEl) llEl.value = v.lektionslaenge_min || 45;
 }
 
 function editVerband() { editVerbandById(editTargetId); }
@@ -1008,6 +1026,7 @@ async function saveVerband() {
     slEmail: document.getElementById('vb-sl-email').value,
     status: document.getElementById('vb-status').value,
     lpModus: document.getElementById('vb-lp-modus') ? document.getElementById('vb-lp-modus').value : 'gemischt',
+    lektionslaenge: parseInt(document.getElementById('vb-lektionslaenge')?.value) || 45,
   };
   const btn = document.querySelector('#vb-form-view .btn-accent-sm');
   if (btn) { btn.textContent = 'Speichert...'; btn.disabled = true; }
@@ -1141,6 +1160,116 @@ async function loadSchulhaeuser(verbandId) {
   }).join('');
 }
 
+
+
+// ── KLASSEN FÄCHER ──
+let _faecher = [];
+let _current_klasse_id = null;
+let _current_klasse_name = null;
+
+async function loadKlasseFaecher(klasseId, klasseName) {
+  _current_klasse_id = klasseId;
+  _current_klasse_name = klasseName;
+  const card = document.getElementById('vb-faecher-card');
+  document.getElementById('vb-faecher-title').textContent = 'Fächer & Lektionen — ' + klasseName;
+  card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const tbody = document.getElementById('vb-detail-faecher');
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:12px;color:var(--color-text-muted)">Lädt…</td></tr>';
+
+  const { data, error } = await db.from('klassen_faecher')
+    .select('id,fach_name,lektionen_pro_woche,doppellektionen_pro_woche,benutzer_id,benutzer(vorname,nachname)')
+    .eq('schulklasse_id', klasseId)
+    .order('fach_name');
+  if (error) { console.error(error); return; }
+  _faecher = data || [];
+
+  if (!_faecher.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--color-text-muted)">Noch keine Fächer erfasst</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _faecher.map(f => {
+    const lpName = f.benutzer ? f.benutzer.vorname + ' ' + f.benutzer.nachname : '—';
+    return '<tr>'
+      + '<td style="padding:var(--space-2) var(--space-3);font-weight:500">' + f.fach_name + '</td>'
+      + '<td style="padding:var(--space-2) var(--space-3);font-size:var(--text-xs);color:var(--color-text-muted)">' + lpName + '</td>'
+      + '<td style="padding:var(--space-2) var(--space-3);text-align:center"><span class="badge badge-muted">' + (f.lektionen_pro_woche||0) + '</span></td>'
+      + '<td style="padding:var(--space-2) var(--space-3);text-align:center"><span class="badge badge-muted">' + (f.doppellektionen_pro_woche||0) + '</span></td>'
+      + '<td style="padding:var(--space-2) var(--space-3);display:flex;gap:4px;justify-content:flex-end">'
+      + '<button class="btn-sm btn-outline-sm" onclick="openFachModal(\'' + f.id + '\')">✏️</button>'
+      + '<button class="btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="deleteFach(\'' + f.id + '\',\'' + f.fach_name + '\')">🗑</button>'
+      + '</td></tr>';
+  }).join('');
+}
+
+async function openFachModal(editId) {
+  document.getElementById('fach-edit-id').value = editId || '';
+  document.getElementById('fach-klasse-id').value = _current_klasse_id || '';
+  document.getElementById('fach-modal-title').textContent = editId ? 'Fach bearbeiten' : 'Fach erfassen';
+
+  // Load LPs for this Klasse from lp_klassen_rollen
+  const { data: lpRows } = await db.from('lp_klassen_rollen')
+    .select('benutzer_id,benutzer(vorname,nachname)')
+    .eq('klasse_id', _current_klasse_id);
+  const lpSel = document.getElementById('fach-lp');
+  lpSel.innerHTML = '<option value="">– keine Zuteilung –</option>'
+    + (lpRows||[]).map(row => {
+      const n = row.benutzer ? row.benutzer.vorname + ' ' + row.benutzer.nachname : row.benutzer_id;
+      return '<option value="' + row.benutzer_id + '">' + n + '</option>';
+    }).join('');
+
+  if (!editId) {
+    document.getElementById('fach-name').value = '';
+    document.getElementById('fach-lektionen').value = '2';
+    document.getElementById('fach-doppel').value = '0';
+    lpSel.value = '';
+  } else {
+    const f = _faecher.find(x => x.id === editId);
+    if (f) {
+      document.getElementById('fach-name').value = f.fach_name || '';
+      document.getElementById('fach-lektionen').value = f.lektionen_pro_woche || 2;
+      document.getElementById('fach-doppel').value = f.doppellektionen_pro_woche || 0;
+      lpSel.value = f.benutzer_id || '';
+    }
+  }
+  document.getElementById('modal-fach').classList.add('active');
+}
+function closeFachModal() { document.getElementById('modal-fach').classList.remove('active'); }
+
+async function saveFach() {
+  const editId = document.getElementById('fach-edit-id').value;
+  const klasseId = document.getElementById('fach-klasse-id').value;
+  const name = document.getElementById('fach-name').value.trim();
+  if (!name) { alert('Bitte Fachbezeichnung eingeben'); return; }
+  const lekt = parseInt(document.getElementById('fach-lektionen').value) || 2;
+  const doppel = parseInt(document.getElementById('fach-doppel').value) || 0;
+  const lpId = document.getElementById('fach-lp').value || null;
+  const payload = {
+    fach_name: name,
+    schulklasse_id: klasseId,
+    lektionen_pro_woche: lekt,
+    doppellektionen_pro_woche: Math.min(doppel, Math.floor(lekt/2)),
+    benutzer_id: lpId
+  };
+  if (editId) {
+    const { error } = await db.from('klassen_faecher').update(payload).eq('id', editId);
+    if (error) { alert('Fehler: ' + error.message); return; }
+  } else {
+    const { error } = await db.from('klassen_faecher').insert(payload);
+    if (error) { alert('Fehler: ' + error.message); return; }
+  }
+  closeFachModal();
+  await loadKlasseFaecher(klasseId, _current_klasse_name);
+  showToast(editId ? '✅ Fach aktualisiert' : '✅ Fach erfasst');
+}
+
+async function deleteFach(id, name) {
+  if (!confirm('Fach «' + name + '» wirklich löschen?')) return;
+  const { error } = await db.from('klassen_faecher').delete().eq('id', id);
+  if (error) { alert('Fehler: ' + error.message); return; }
+  await loadKlasseFaecher(_current_klasse_id, _current_klasse_name);
+  showToast('🗑 Fach gelöscht');
+}
 
 // ── SCHULRÄUME ──
 let _raeume = [];
@@ -1306,7 +1435,9 @@ async function loadKlassen(schulhausId, schulhausName) {
       + '<td><span class="badge badge-muted">' + stufe + '</span></td>'
       + '<td>' + jahr + '</td>'
       + '<td>' + (k.schulraeume ? '<span class="badge badge-muted">🏠 ' + k.schulraeume.bezeichnung + '</span>' : '<span style="color:var(--color-text-faint);font-size:var(--text-xs)">—</span>') + '</td>'
-      + '<td><button class="btn-sm btn-outline-sm" onclick="openSchulhausZuweisungModal(\''+k.id+'\',\''+encodeURIComponent(k.bezeichnung)+'\')" style="font-size:var(--text-xs)">' + (k.zuweisung_modus==='faecher' ? '🏫 Fachweise' : (k.schulhaus_id ? '🏫 Ganze Klasse' : '— zuordnen')) + '</button></td>'      + '<td style="display:flex;gap:4px">'      + '<button class="btn-sm btn-outline-sm" onclick="openKlasseModal(\''+k.id+'\')">✏️</button>'      + '<button class="btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="deleteKlasse(\''+k.id+'\',\''+k.bezeichnung+'\')">🗑</button>'
+      + '<td><button class="btn-sm btn-outline-sm" onclick="openSchulhausZuweisungModal(\''+k.id+'\',\''+encodeURIComponent(k.bezeichnung)+'\')" style="font-size:var(--text-xs)">' + (k.zuweisung_modus==='faecher' ? '🏫 Fachweise' : (k.schulhaus_id ? '🏫 Ganze Klasse' : '— zuordnen')) + '</button></td>'      + '<td style="display:flex;gap:4px">'      + '<button class="btn-sm btn-outline-sm" onclick="openKlasseModal(\''+k.id+'\')">✏️</button>'
+      + '<button class="btn-sm btn-outline-sm" style="padding:2px 8px;font-size:10px" onclick="loadKlasseFaecher(\''+k.id+'\',\''+k.bezeichnung+'\')">📚 Fächer</button>'
+      + '<button class="btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="deleteKlasse(\''+k.id+'\',\''+k.bezeichnung+'\')">🗑</button>'
       + '</td></tr>';
   }).join('');
 }
@@ -2830,6 +2961,42 @@ function closeSchulhausZuweisungModal() {
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeRaumModal()">Abbrechen</button>
       <button class="btn-primary" onclick="saveRaum()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FACH MODAL ══ -->
+<div class="modal-overlay" id="modal-fach">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title" id="fach-modal-title">Fach erfassen</span>
+      <button class="icon-btn" onclick="closeFachModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body modal-grid">
+      <input type="hidden" id="fach-edit-id"/>
+      <input type="hidden" id="fach-klasse-id"/>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Fachbezeichnung *</label>
+        <input class="form-input" id="fach-name" placeholder="z.B. Deutsch, Mathematik, Sport"/>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Lehrperson</label>
+        <select class="form-input" id="fach-lp">
+          <option value="">– keine Zuteilung –</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Lektionen / Woche</label>
+        <input class="form-input" type="number" id="fach-lektionen" value="2" min="1" max="20"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Doppellektionen / Woche</label>
+        <input class="form-input" type="number" id="fach-doppel" value="0" min="0" max="10"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeFachModal()">Abbrechen</button>
+      <button class="btn-primary" onclick="saveFach()">Speichern</button>
     </div>
   </div>
 </div>
