@@ -1728,6 +1728,7 @@ async function saveLpKlassenRollen(benutzerId) {
 async function saveLpBearbeiten() {
   const id = document.getElementById('lp-edit-id').value;
   if (!id) return;
+  const vid = editTargetId || window._active_verband_id || window._last_verband_id;
   const payload = {
     vorname: document.getElementById('lp-edit-vorname').value.trim(),
     nachname: document.getElementById('lp-edit-nachname').value.trim(),
@@ -1740,7 +1741,7 @@ async function saveLpBearbeiten() {
   if (error) { alert('Fehler: ' + error.message); return; }
   await saveLpKlassenRollen(id);
   document.getElementById('modal-lp-edit').classList.remove('active');
-  await showVbDetail(editTargetId);
+  if (vid) { editTargetId = vid; await showVbDetail(vid); }
   showToast('✅ Lehrperson gespeichert');
 }
 
