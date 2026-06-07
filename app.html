@@ -1643,10 +1643,20 @@ async function loadLpKlassenRollen(benutzerId) {
     console.warn('loadLpKlassenRollen: kein editTargetId verfügbar');
     _alle_klassen_vb = [];
   } else {
-    const { data: kl } = await db.from('schulklassen')
-      .select('id,bezeichnung,schulhaeuser(name)')
-      .eq('verband_id', vid)
-      .order('bezeichnung');
+    // Schulklassen können via verband_id ODER via schulhaus.verband_id verknüpft sein
+    // Zuerst Schulhaus-IDs für diesen Verband holen
+    const { data: shRows } = await db.from('schulhaeuser')
+      .select('id').eq('verband_id', vid);
+    const shIds = (shRows || []).map(function(s){ return s.id; });
+    // Dann Klassen: direkt via verband_id + via schulhaus_id
+    let query = db.from('schulklassen')
+      .select('id,bezeichnung,schulhaeuser:schulhaus_id(name)');
+    if (shIds.length > 0) {
+      query = query.or('verband_id.eq.' + vid + ',schulhaus_id.in.(' + shIds.join(',') + ')');
+    } else {
+      query = query.eq('verband_id', vid);
+    }
+    const { data: kl } = await query.order('bezeichnung');
     _alle_klassen_vb = kl || [];
   }
   const { data: existing } = await db.from('lp_klassen_rollen')
