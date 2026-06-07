@@ -1096,13 +1096,39 @@ function vbAddPauseRow(p) {
   tr.innerHTML = '<td style="padding:4px 6px;border:1px solid var(--color-border)">'
     + '<input type="text" class="form-input pause-bez" value="'+bez+'" placeholder="z.B. Grosse Pause" style="width:100%"/></td>'
     + '<td style="padding:4px 6px;border:1px solid var(--color-border)">'
-    + '<input type="time" class="form-input pause-von" value="'+von+'" step="300" style="width:100%"/></td>'
+    + '<input type="time" class="form-input pause-von" value="'+von+'" step="300" style="width:100%" onchange="vbValidatePause(this)" oninput="vbValidatePause(this)"/></td>'
     + '<td style="padding:4px 6px;border:1px solid var(--color-border)">'
-    + '<input type="time" class="form-input pause-bis" value="'+bis+'" step="300" style="width:100%"/></td>'
+    + '<input type="time" class="form-input pause-bis" value="'+bis+'" step="300" style="width:100%" onchange="vbValidatePause(this)" oninput="vbValidatePause(this)"/></td>'
     + '<td style="padding:4px;text-align:center;border:1px solid var(--color-border)">'
     + '<button type="button" onclick="this.closest(\'tr\').remove()" style="color:var(--color-error);background:none;border:none;cursor:pointer;font-size:16px;line-height:1">×</button></td>';
   tbody.appendChild(tr);
 }
+
+function vbValidatePause(el) {
+  const tr = el.closest('tr');
+  if (!tr) return;
+  const vonEl = tr.querySelector('.pause-von');
+  const bisEl = tr.querySelector('.pause-bis');
+  if (!vonEl || !bisEl) return;
+  const vonVal = vonEl.value, bisVal = bisEl.value;
+  let errEl = tr.querySelector('.pause-err');
+  if (!errEl) {
+    errEl = document.createElement('td');
+    errEl.className = 'pause-err';
+    errEl.style.cssText = 'padding:0 4px;font-size:10px;color:var(--color-error);white-space:nowrap;border:none;background:transparent';
+    tr.appendChild(errEl);
+  }
+  if (vonVal && bisVal && vonVal >= bisVal) {
+    bisEl.style.outline = '2px solid var(--color-error)';
+    vonEl.style.outline = '2px solid var(--color-error)';
+    errEl.textContent = '⚠ Ende vor Start!';
+  } else {
+    bisEl.style.outline = '';
+    vonEl.style.outline = '';
+    errEl.textContent = '';
+  }
+}
+
 
 async function saveVerband() {
   const editId = document.getElementById('vb-edit-id').value || null;
@@ -1124,6 +1150,17 @@ async function saveVerband() {
       }));
     })(),
   };
+  // Pausen validieren
+  const pausenRows = document.querySelectorAll('#vb-pausen-tbody tr[data-pause]');
+  for (const row of pausenRows) {
+    const von = row.querySelector('.pause-von')?.value;
+    const bis = row.querySelector('.pause-bis')?.value;
+    const bez = row.querySelector('.pause-bez')?.value || 'Pause';
+    if (von && bis && von >= bis) {
+      alert('Pause «' + bez + '»: Start (' + von + ') muss vor Ende (' + bis + ') liegen.');
+      return;
+    }
+  }
   const btn = document.querySelector('#vb-form-view .btn-accent-sm');
   if (btn) { btn.textContent = 'Speichert...'; btn.disabled = true; }
   const ok = await saveVerbandDB(data, editId);
