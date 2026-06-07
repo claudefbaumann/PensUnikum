@@ -2870,6 +2870,8 @@ async function loadStundenplan() {
     .eq('schulklasse_id', klasseId);
   _sp_faecher = faecher || [];
 
+  console.log('[SP] pausen_map:', JSON.stringify(_sp_pausen_map));
+  console.log('[SP] _sp_current_vid:', window._sp_current_vid);
   renderStundenplan();
 }
 
@@ -2995,13 +2997,15 @@ function renderStundenplan() {
     // Pausen als breiter Balken über alle Tage
     if (l > 1) {
       const vid2 = window._sp_current_vid || editTargetId || window._active_verband_id || window._last_verband_id;
-      const vb2  = (typeof VERBAENDE !== 'undefined') ? VERBAENDE.find(x => x.id === vid2) : null;
-      const activePausen = (typeof _sp_pausen_map !== 'undefined' && _sp_pausen_map[vid2]) ? _sp_pausen_map[vid2] : ((vb2 && vb2.pausen) ? vb2.pausen : []);
+      const activePausen = (typeof _sp_pausen_map !== 'undefined' && _sp_pausen_map[vid2])
+        ? _sp_pausen_map[vid2]
+        : ((typeof VERBAENDE !== 'undefined' && VERBAENDE.find(x=>x.id===vid2)?.pausen) || []);
       const t2m = t => { const[h,m]=(t||'00:00').split(':'); return (+h)*60+(+m); };
-      const endPrev  = startMins + (l-2)*(lektMin+pauseMin) + lektMin;
-      const startCur = startMins + (l-1)*(lektMin+pauseMin);
+      // Zeige Pause wenn ihre Von-Zeit zwischen Ende Lektion l-1 und Ende Lektion l liegt
+      const endLPrev = startMins + (l-2)*(lektMin+pauseMin) + lektMin;
+      const endLCur  = startMins + (l-1)*(lektMin+pauseMin) + lektMin;
       const pHere = activePausen
-        .filter(p => t2m(p.von) >= endPrev && t2m(p.von) < startCur)
+        .filter(p => t2m(p.von) > endLPrev && t2m(p.von) <= endLCur)
         .sort((a,b) => t2m(a.von) - t2m(b.von));
       pHere.forEach(p => {
         const pDauer = t2m(p.bis) - t2m(p.von);
@@ -3012,8 +3016,8 @@ function renderStundenplan() {
           + '</td>';
         grid += '<td colspan="'+TAGE+'" style="padding:0;border:1px solid #fcd34d;background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%);vertical-align:middle;height:34px">'
           + '<div style="display:flex;align-items:center;justify-content:center;gap:8px;height:34px">'
-          + '<span style="font-size:14px">☕</span>'
-          + '<span style="font-size:12px;font-weight:700;color:#78350f;letter-spacing:0.01em">'+p.bezeichnung+'</span>'
+          + '<span style="font-size:15px">☕</span>'
+          + '<span style="font-size:12px;font-weight:700;color:#78350f">'+p.bezeichnung+'</span>'
           + '<span style="font-size:11px;color:#b45309;background:rgba(255,255,255,0.6);padding:1px 8px;border-radius:99px;border:1px solid #fcd34d">'+pDauer+' Min.</span>'
           + '</div>'
           + '</td>';
