@@ -1171,71 +1171,135 @@ async function loadKlasseFaecher(klasseId, klasseName) {
   _current_klasse_id = klasseId;
   _current_klasse_name = klasseName;
   const card = document.getElementById('vb-faecher-card');
+  const klCard = document.getElementById('vb-klassen-card');
   document.getElementById('vb-faecher-title').textContent = 'Fächer & Lektionen — ' + klasseName;
   card.style.display = 'block';
-  const klCard = document.getElementById('vb-klassen-card');
   if (klCard) klCard.style.display = 'block';
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   const tbody = document.getElementById('vb-detail-faecher');
   tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:12px;color:var(--color-text-muted)">Lädt…</td></tr>';
-
   const { data, error } = await db.from('klassen_faecher')
     .select('id,fach_name,lektionen_pro_woche,doppellektionen_pro_woche,benutzer_id,benutzer:benutzer_id(vorname,nachname)')
-    .eq('schulklasse_id', klasseId)
-    .order('fach_name');
+    .eq('schulklasse_id', klasseId).order('fach_name');
   if (error) { console.error('loadKlasseFaecher:', error); return; }
   _faecher = data || [];
-
   if (!_faecher.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--color-text-muted)">Noch keine Fächer erfasst — klicke «+ Fach hinzufügen»</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--color-text-muted)">Noch keine Fächer — «+ Fach hinzufügen» klicken</td></tr>';
     return;
   }
-  tbody.innerHTML = _faecher.map(f => {
-    const lpName = (f.benutzer && f.benutzer.vorname) ? f.benutzer.vorname + ' ' + f.benutzer.nachname : '—';
+  tbody.innerHTML = _faecher.map(function(f) {
+    var lp = (f.benutzer && f.benutzer.vorname) ? f.benutzer.vorname + ' ' + f.benutzer.nachname : '—';
     return '<tr>'
       + '<td style="padding:var(--space-2) var(--space-3);font-weight:500">' + f.fach_name + '</td>'
-      + '<td style="padding:var(--space-2) var(--space-3);font-size:var(--text-xs);color:var(--color-text-muted)">' + lpName + '</td>'
+      + '<td style="padding:var(--space-2) var(--space-3);font-size:var(--text-xs);color:var(--color-text-muted)">' + lp + '</td>'
       + '<td style="padding:var(--space-2) var(--space-3);text-align:center"><span class="badge badge-muted">' + (f.lektionen_pro_woche||0) + '</span></td>'
       + '<td style="padding:var(--space-2) var(--space-3);text-align:center"><span class="badge badge-muted">' + (f.doppellektionen_pro_woche||0) + '</span></td>'
       + '<td style="padding:var(--space-2) var(--space-3)">'
       + '<div style="display:flex;gap:4px;justify-content:flex-end">'
-      + '<button class="btn-sm btn-outline-sm" onclick="openKlassenFachModal(\'' + f.id + '\')">✏️</button>'
-      + '<button class="btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="deleteKlassenFach(\'' + f.id + '\',\'' + f.fach_name.replace(/'/g,"") + '\')">🗑</button>'
+      + '<button class="btn-sm btn-outline-sm kf-edit-btn" data-id="' + f.id + '">✏️</button>'
+      + '<button class="btn-danger btn-sm kf-del-btn" data-id="' + f.id + '" style="padding:2px 8px;font-size:10px">🗑</button>'
       + '</div></td></tr>';
   }).join('');
+  tbody.querySelectorAll('.kf-edit-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() { openKlassenFachModal(this.dataset.id); });
+  });
+  tbody.querySelectorAll('.kf-del-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() { deleteKlassenFach(this.dataset.id); });
+  });
 }
 
 async function openKlassenFachModal(editId) {
   document.getElementById('kf-edit-id').value = editId || '';
   document.getElementById('kf-klasse-id').value = _current_klasse_id || '';
   document.getElementById('kf-modal-title').textContent = editId ? 'Fach bearbeiten' : 'Fach erfassen';
+  document.getElementById('kf-msg').textContent = '';
 
-  // Load LPs for this Klasse
-  const { data: lpRows } = await db.from('lp_klassen_rollen')
-    .select('benutzer_id,benutzer:benutzer_id(vorname,nachname)')
-    .eq('klasse_id', _current_klasse_id);
+  // LPs laden
   const lpSel = document.getElementById('kf-lp');
-  lpSel.innerHTML = '<option value="">– keine Zuteilung –</option>'
-    + (lpRows || []).map(row => {
+  lpSel.innerHTML = '<option value="">– keine Zuteilung –</option>';
+  if (_current_klasse_id) {
+    const { data: lpRows } = await db.from('lp_klassen_rollen')
+      .select('benutzer_id,benutzer:benutzer_id(vorname,nachname)')
+      .eq('klasse_id', _current_klasse_id);
+    (lpRows || []).forEach(function(row) {
       const n = (row.benutzer && row.benutzer.vorname) ? row.benutzer.vorname + ' ' + row.benutzer.nachname : '—';
-      return '<option value="' + row.benutzer_id + '">' + n + '</option>';
-    }).join('');
+      const opt = document.createElement('option');
+      opt.value = row.benutzer_id; opt.textContent = n;
+      lpSel.appendChild(opt);
+    });
+  }
 
+  // Schnellauswahl (nur bei Neu-Erfassung)
+  const wrapper = document.getElementById('kf-schnellauswahl-wrapper');
+  const schnellEl = document.getElementById('kf-schnellauswahl');
+  wrapper.style.display = editId ? 'none' : 'block';
+  if (!editId && schnellEl) {
+    schnellEl.innerHTML = '<span style="color:var(--color-text-muted);font-size:var(--text-xs)">Lädt…</span>';
+    const { data: vf } = await db.from('verband_faecher')
+      .select('id,name').eq('verband_id', editTargetId).order('name');
+    const seen = {};
+    const unique = (vf || []).filter(function(f) {
+      if (seen[f.name]) return false; seen[f.name] = true; return true;
+    });
+    schnellEl.innerHTML = '';
+    if (unique.length) {
+      unique.forEach(function(f) {
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.textContent = f.name;
+        btn.style.cssText = 'padding:3px 10px;border-radius:var(--radius-full);background:var(--color-surface-dynamic);border:1px solid var(--color-border);cursor:pointer;font-size:var(--text-xs);transition:background 0.15s';
+        btn.addEventListener('mouseover', function() { this.style.background = 'var(--color-primary-highlight)'; });
+        btn.addEventListener('mouseout', function() { this.style.background = 'var(--color-surface-dynamic)'; });
+        btn.addEventListener('click', function() {
+          document.getElementById('kf-name').value = f.name;
+          document.getElementById('kf-name').focus();
+        });
+        schnellEl.appendChild(btn);
+      });
+    } else {
+      schnellEl.innerHTML = '<span style="color:var(--color-text-muted);font-size:var(--text-xs)">Keine Vorlagen vorhanden</span>';
+    }
+  }
+
+  // Felder befüllen
   if (!editId) {
     document.getElementById('kf-name').value = '';
     document.getElementById('kf-lektionen').value = '2';
     document.getElementById('kf-doppel').value = '0';
+    document.getElementById('kf-doppel-hint').textContent = '(max. 1)';
     lpSel.value = '';
   } else {
-    const f = _faecher.find(x => x.id === editId);
+    const f = _faecher.find(function(x) { return x.id === editId; });
     if (f) {
       document.getElementById('kf-name').value = f.fach_name || '';
-      document.getElementById('kf-lektionen').value = f.lektionen_pro_woche || 2;
+      const lekt = f.lektionen_pro_woche || 2;
+      document.getElementById('kf-lektionen').value = lekt;
       document.getElementById('kf-doppel').value = f.doppellektionen_pro_woche || 0;
+      document.getElementById('kf-doppel-hint').textContent = '(max. ' + Math.floor(lekt/2) + ')';
       lpSel.value = f.benutzer_id || '';
     }
   }
   document.getElementById('modal-klassen-fach').classList.add('active');
+}
+
+function kfSyncDoppel() {
+  const lekt = parseInt(document.getElementById('kf-lektionen').value) || 0;
+  const max = Math.floor(lekt / 2);
+  document.getElementById('kf-doppel-hint').textContent = '(max. ' + max + ')';
+  const doppelEl = document.getElementById('kf-doppel');
+  if ((parseInt(doppelEl.value)||0) > max) {
+    doppelEl.value = max;
+    document.getElementById('kf-msg').textContent = 'Doppellektionen auf ' + max + ' korrigiert.';
+  } else {
+    document.getElementById('kf-msg').textContent = '';
+  }
+}
+
+function kfCheckDoppel() {
+  const lekt = parseInt(document.getElementById('kf-lektionen').value) || 0;
+  const doppel = parseInt(document.getElementById('kf-doppel').value) || 0;
+  const max = Math.floor(lekt / 2);
+  document.getElementById('kf-msg').textContent = doppel > max
+    ? 'Max. ' + max + ' Doppellektionen bei ' + lekt + ' Lektionen/Woche.' : '';
 }
 
 function closeKlassenFachModal() {
@@ -1249,34 +1313,28 @@ async function saveKlassenFach() {
   if (!name) { alert('Bitte Fachbezeichnung eingeben'); return; }
   if (!klasseId) { alert('Keine Klasse ausgewählt'); return; }
   const lekt = parseInt(document.getElementById('kf-lektionen').value) || 2;
-  const doppel = parseInt(document.getElementById('kf-doppel').value) || 0;
+  const doppel = Math.min(parseInt(document.getElementById('kf-doppel').value)||0, Math.floor(lekt/2));
   const lpId = document.getElementById('kf-lp').value || null;
-  const payload = {
-    fach_name: name,
-    schulklasse_id: klasseId,
-    lektionen_pro_woche: lekt,
-    doppellektionen_pro_woche: Math.min(doppel, Math.floor(lekt / 2)),
-    benutzer_id: lpId
-  };
-  if (editId) {
-    const { error } = await db.from('klassen_faecher').update(payload).eq('id', editId);
-    if (error) { alert('Fehler: ' + error.message); return; }
-  } else {
-    const { error } = await db.from('klassen_faecher').insert(payload);
-    if (error) { alert('Fehler: ' + error.message); return; }
-  }
+  const payload = { fach_name: name, schulklasse_id: klasseId,
+    lektionen_pro_woche: lekt, doppellektionen_pro_woche: doppel, benutzer_id: lpId };
+  const res = editId
+    ? await db.from('klassen_faecher').update(payload).eq('id', editId)
+    : await db.from('klassen_faecher').insert(payload);
+  if (res.error) { alert('Fehler: ' + res.error.message); return; }
   closeKlassenFachModal();
   await loadKlasseFaecher(klasseId, _current_klasse_name);
   showToast(editId ? '✅ Fach aktualisiert' : '✅ Fach erfasst');
 }
 
-async function deleteKlassenFach(id, name) {
-  if (!confirm('Fach «' + name + '» wirklich löschen?')) return;
-  const { error } = await db.from('klassen_faecher').delete().eq('id', id);
-  if (error) { alert('Fehler: ' + error.message); return; }
+async function deleteKlassenFach(id) {
+  const f = _faecher.find(function(x) { return x.id === id; });
+  if (!confirm('Fach «' + (f ? f.fach_name : '?') + '» wirklich löschen?')) return;
+  const res = await db.from('klassen_faecher').delete().eq('id', id);
+  if (res.error) { alert('Fehler: ' + res.error.message); return; }
   await loadKlasseFaecher(_current_klasse_id, _current_klasse_name);
   showToast('🗑 Fach gelöscht');
 }
+
 
 
 // ── SCHULRÄUME ──
@@ -2975,31 +3033,39 @@ function closeSchulhausZuweisungModal() {
 
 <!-- ══ FACH MODAL ══ -->
 <div class="modal-overlay" id="modal-klassen-fach">
-  <div class="modal" style="max-width:480px">
+  <div class="modal" style="max-width:500px">
     <div class="modal-header">
       <span class="modal-title" id="kf-modal-title">Fach erfassen</span>
       <button class="icon-btn" onclick="closeKlassenFachModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
-    <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
+    <div class="modal-body" style="display:grid;gap:var(--space-4)">
       <input type="hidden" id="kf-edit-id"/>
       <input type="hidden" id="kf-klasse-id"/>
-      <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Fachbezeichnung *</label>
-        <input class="form-input" id="kf-name" placeholder="z.B. Deutsch, Mathematik, Sport"/>
+      <div id="kf-schnellauswahl-wrapper">
+        <label class="form-label" style="margin-bottom:var(--space-2)">Aus Verband-Fächern wählen</label>
+        <div id="kf-schnellauswahl" style="display:flex;flex-wrap:wrap;gap:6px;padding:var(--space-3);background:var(--color-surface-offset);border-radius:var(--radius-md);max-height:120px;overflow-y:auto">
+          <span style="color:var(--color-text-muted);font-size:var(--text-xs)">Lädt…</span>
+        </div>
+        <p style="font-size:var(--text-xs);color:var(--color-text-muted);margin-top:4px">Klick übernimmt den Namen ins Formular</p>
       </div>
-      <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Lehrperson</label>
-        <select class="form-input" id="kf-lp">
-          <option value="">– keine Zuteilung –</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Lektionen / Woche</label>
-        <input class="form-input" type="number" id="kf-lektionen" value="2" min="1" max="20"/>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Doppellektionen / Woche</label>
-        <input class="form-input" type="number" id="kf-doppel" value="0" min="0" max="10"/>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Fachbezeichnung *</label>
+          <input class="form-input" id="kf-name" placeholder="z.B. Deutsch, Mathematik, Sport"/>
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Lehrperson</label>
+          <select class="form-input" id="kf-lp"><option value="">– keine Zuteilung –</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Lektionen / Woche</label>
+          <input class="form-input" type="number" id="kf-lektionen" value="2" min="1" max="20" oninput="kfSyncDoppel()"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Doppellektionen / Woche <span id="kf-doppel-hint" style="font-weight:400;color:var(--color-text-muted);font-size:11px"></span></label>
+          <input class="form-input" type="number" id="kf-doppel" value="0" min="0" max="10" oninput="kfCheckDoppel()"/>
+          <p id="kf-msg" style="font-size:11px;color:var(--color-error);margin-top:4px;min-height:16px"></p>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
