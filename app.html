@@ -1324,13 +1324,20 @@ let currentPersonMode = 'mit_login';
 function openPersonModal(context){
   document.getElementById('modal-person').classList.add('active');
   document.getElementById('person-modal-title').textContent = context === 'admin' ? 'Benutzer erfassen' : 'Lehrperson erfassen';
-  document.getElementById('person-role').value = context === 'admin' ? 'lehrperson' : 'lehrperson';
+  document.getElementById('person-role').value = 'lehrperson';
   document.getElementById('person-vorname').value='';
   document.getElementById('person-nachname').value='';
   document.getElementById('person-email').value='';
-  document.getElementById('person-bemerkungen').value='';
   document.getElementById('person-notify').checked = true;
   setPersonMode('mit_login');
+  // Reset Klassen-Rollen
+  _lp_klassen_rollen_rows = [];
+  // Load Klassen for dropdown (same Verband)
+  db.from('schulklassen')
+    .select('id,bezeichnung,schulhaeuser(name)')
+    .eq('verband_id', editTargetId)
+    .order('bezeichnung')
+    .then(function(res){ _alle_klassen_vb = res.data || []; renderLpKlassenRollenList(); });
 }
 function closePersonModal(){ document.getElementById('modal-person').classList.remove('active'); }
 function setPersonMode(mode){
@@ -1380,13 +1387,13 @@ async function savePerson(){
     rolle: 'lehrperson',
     login_methode: 'email',
     modus: currentPersonMode,
-    bemerkungen: document.getElementById('person-bemerkungen').value,
     notify_on_change: document.getElementById('person-notify').checked,
     aktiv: true,
     verband_id: editTargetId || null
   };
-  const { error } = await db.from('benutzer').insert(payload);
+  const { data: newData, error } = await db.from('benutzer').insert(payload).select('id').single();
   if(error){ alert('Fehler beim Speichern: ' + error.message); return; }
+  if(newData && newData.id) await saveLpKlassenRollen(newData.id);
   if(currentPersonMode === 'mit_login' && payload.email){
     showToast('Lehrperson erfasst. Einladung/Login kann im nächsten Schritt versendet werden.');
   } else {
@@ -2483,7 +2490,7 @@ function closeSchulhausZuweisungModal() {
 
 
 <div class="modal-overlay" id="modal-person">
-  <div class="modal">
+  <div class="modal" style="max-width:620px">
     <div class="modal-header">
       <span class="modal-title" id="person-modal-title">Lehrperson erfassen</span>
       <button class="icon-btn" onclick="closePersonModal()">
@@ -2492,8 +2499,10 @@ function closeSchulhausZuweisungModal() {
     </div>
     <div class="modal-body" style="display:grid;gap:var(--space-3)">
       <input type="hidden" id="person-role" value="lehrperson"/>
-      <div class="form-group"><label class="form-label">Vorname</label><input class="form-input" id="person-vorname" placeholder="Vorname"/></div>
-      <div class="form-group"><label class="form-label">Nachname</label><input class="form-input" id="person-nachname" placeholder="Nachname"/></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)">
+        <div class="form-group"><label class="form-label">Vorname</label><input class="form-input" id="person-vorname" placeholder="Vorname"/></div>
+        <div class="form-group"><label class="form-label">Nachname</label><input class="form-input" id="person-nachname" placeholder="Nachname"/></div>
+      </div>
       <div class="form-group"><label class="form-label">E-Mail</label><input class="form-input" id="person-email" placeholder="name@schule.ch"/></div>
       <div class="form-group"><label class="form-label">Erfassungsmodus</label>
         <div class="segmented">
@@ -2503,6 +2512,14 @@ function closeSchulhausZuweisungModal() {
         <div class="hint" id="mode-hint">Lehrperson erhält Zugang und kann eigene Wünsche selbst pflegen.</div>
       </div>
       <label style="display:flex;gap:8px;align-items:flex-start;font-size:var(--text-sm);"><input type="checkbox" id="person-notify" checked /> Änderungen durch Schulleitung senden automatisch ein Infomail an die Lehrperson.</label>
+      <!-- Klassen-Rollen -->
+      <div style="border-top:1px solid var(--color-divider);padding-top:var(--space-4)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)">
+          <span style="font-size:var(--text-sm);font-weight:600">Klassen &amp; Rollen</span>
+          <button class="btn-sm btn-accent-sm" type="button" onclick="addLpKlasseRow()">+ Klasse hinzufügen</button>
+        </div>
+        <div id="lp-klassen-rollen-list" style="display:flex;flex-direction:column;gap:var(--space-2)"></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closePersonModal()">Abbrechen</button>
