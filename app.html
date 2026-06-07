@@ -1411,9 +1411,87 @@ async function openLpBearbeiten(lpId) {
   document.getElementById('lp-edit-email').value = lp.email || '';
   document.getElementById('lp-edit-rolle').value = lp.rolle || 'lehrperson';
   document.getElementById('lp-edit-modus').value = lp.modus || 'ohne_login';
-  document.getElementById('lp-edit-bemerkungen').value = lp.bemerkungen || '';
   document.getElementById('lp-edit-aktiv').checked = lp.aktiv !== false;
+  await loadLpKlassenRollen(lp.id);
   document.getElementById('modal-lp-edit').classList.add('active');
+}
+
+
+// ── LP KLASSEN-ROLLEN ──
+const LP_ROLLEN_OPTIONEN = [
+  { key: 'klassenlehrperson', label: 'Klassenlehrperson' },
+  { key: 'fachlehrperson',    label: 'Fachlehrperson' },
+  { key: 'heilpaedagogik',    label: 'Heilpädagogik' },
+  { key: 'daz',               label: 'DaZ' },
+  { key: 'logopaedie',        label: 'Logopädie' },
+  { key: 'psychomotorik',     label: 'Psychomotorik' }
+];
+let _lp_klassen_rollen_rows = [];
+let _alle_klassen_vb = [];
+
+async function loadLpKlassenRollen(benutzerId) {
+  const { data: kl } = await db.from('schulklassen')
+    .select('id,bezeichnung,schulhaeuser(name)')
+    .eq('verband_id', editTargetId)
+    .order('bezeichnung');
+  _alle_klassen_vb = kl || [];
+  const { data: existing } = await db.from('lp_klassen_rollen')
+    .select('id,klasse_id,rolle')
+    .eq('benutzer_id', benutzerId);
+  _lp_klassen_rollen_rows = (existing || []).map(e => ({ _id: e.id, klasse_id: e.klasse_id, rolle: e.rolle }));
+  renderLpKlassenRollenList();
+}
+
+function renderLpKlassenRollenList() {
+  const list = document.getElementById('lp-klassen-rollen-list');
+  if (!list) return;
+  if (_lp_klassen_rollen_rows.length === 0) {
+    list.innerHTML = '<div style="font-size:var(--text-xs);color:var(--color-text-muted);padding:var(--space-2) 0">Noch keine Klassen zugeordnet</div>';
+    return;
+  }
+  const klassenOpts = _alle_klassen_vb.map(k => {
+    const sh = (k.schulhaeuser && k.schulhaeuser.name) ? k.schulhaeuser.name + ' \u2013 ' : '';
+    return '<option value="' + k.id + '">' + sh + k.bezeichnung + '</option>';
+  }).join('');
+  const rollenOpts = LP_ROLLEN_OPTIONEN.map(r =>
+    '<option value="' + r.key + '">' + r.label + '</option>'
+  ).join('');
+  list.innerHTML = _lp_klassen_rollen_rows.map(function(row, idx) {
+    const kSel = '<select class="form-input" style="flex:1.2;font-size:var(--text-xs);padding:4px 6px"'
+      + ' onchange="lpKlasseRowChange(' + idx + ',\'klasse_id\',this.value)">'
+      + '<option value="">– Klasse –</option>'
+      + klassenOpts.replace('value="' + row.klasse_id + '"', 'value="' + row.klasse_id + '" selected')
+      + '</select>';
+    const rSel = '<select class="form-input" style="flex:1;font-size:var(--text-xs);padding:4px 6px"'
+      + ' onchange="lpKlasseRowChange(' + idx + ',\'rolle\',this.value)">'
+      + rollenOpts.replace('value="' + row.rolle + '"', 'value="' + row.rolle + '" selected')
+      + '</select>';
+    const del = '<button type="button" onclick="removeLpKlasseRow(' + idx + ')"'
+      + ' style="flex-shrink:0;width:28px;height:28px;border-radius:var(--radius-sm);background:var(--color-error-highlight);color:var(--color-error);border:none;cursor:pointer;font-size:13px">✕</button>';
+    return '<div style="display:flex;gap:var(--space-2);align-items:center">' + kSel + rSel + del + '</div>';
+  }).join('');
+}
+
+function lpKlasseRowChange(idx, field, value) {
+  if (_lp_klassen_rollen_rows[idx]) _lp_klassen_rollen_rows[idx][field] = value;
+}
+function addLpKlasseRow() {
+  _lp_klassen_rollen_rows.push({ klasse_id: '', rolle: 'klassenlehrperson' });
+  renderLpKlassenRollenList();
+}
+function removeLpKlasseRow(idx) {
+  _lp_klassen_rollen_rows.splice(idx, 1);
+  renderLpKlassenRollenList();
+}
+async function saveLpKlassenRollen(benutzerId) {
+  await db.from('lp_klassen_rollen').delete().eq('benutzer_id', benutzerId);
+  const toInsert = _lp_klassen_rollen_rows
+    .filter(function(r){ return r.klasse_id && r.rolle; })
+    .map(function(r){ return { benutzer_id: benutzerId, klasse_id: r.klasse_id, rolle: r.rolle }; });
+  if (toInsert.length > 0) {
+    const { error } = await db.from('lp_klassen_rollen').insert(toInsert);
+    if (error) console.error('lp_klassen_rollen error:', error);
+  }
 }
 
 async function saveLpBearbeiten() {
@@ -1425,11 +1503,11 @@ async function saveLpBearbeiten() {
     email: document.getElementById('lp-edit-email').value.trim(),
     rolle: document.getElementById('lp-edit-rolle').value,
     modus: document.getElementById('lp-edit-modus').value,
-    bemerkungen: document.getElementById('lp-edit-bemerkungen').value.trim(),
     aktiv: document.getElementById('lp-edit-aktiv').checked
   };
   const { error } = await db.from('benutzer').update(payload).eq('id', id);
   if (error) { alert('Fehler: ' + error.message); return; }
+  await saveLpKlassenRollen(id);
   document.getElementById('modal-lp-edit').classList.remove('active');
   await showVbDetail(editTargetId);
   showToast('✅ Lehrperson gespeichert');
@@ -2674,7 +2752,7 @@ function closeSchulhausZuweisungModal() {
 
 <!-- ══ MODAL: LP BEARBEITEN ══ -->
 <div class="modal-overlay" id="modal-lp-edit">
-  <div class="modal" style="max-width:480px">
+  <div class="modal" style="max-width:620px">
     <div class="modal-header">
       <span class="modal-title">Lehrperson bearbeiten</span>
       <button class="icon-btn" onclick="document.getElementById('modal-lp-edit').classList.remove('active')">
@@ -2687,7 +2765,7 @@ function closeSchulhausZuweisungModal() {
         <div class="form-group"><label class="form-label">Vorname</label><input class="form-input" id="lp-edit-vorname" placeholder="Vorname"/></div>
         <div class="form-group"><label class="form-label">Nachname</label><input class="form-input" id="lp-edit-nachname" placeholder="Nachname"/></div>
         <div class="form-group" style="grid-column:1/-1"><label class="form-label">E-Mail</label><input class="form-input" id="lp-edit-email" type="email" placeholder="name@schule.ch"/></div>
-        <div class="form-group"><label class="form-label">Rolle</label>
+        <div class="form-group"><label class="form-label">Systemrolle</label>
           <select class="form-input" id="lp-edit-rolle">
             <option value="lehrperson">Lehrperson</option>
             <option value="verbandsleitung">Verbandsleitung</option>
@@ -2700,11 +2778,17 @@ function closeSchulhausZuweisungModal() {
             <option value="ohne_login">📋 Ohne Login</option>
           </select>
         </div>
-        <div class="form-group" style="grid-column:1/-1"><label class="form-label">Bemerkungen</label><textarea class="form-input" id="lp-edit-bemerkungen" rows="2" placeholder="Interne Notizen…"></textarea></div>
         <div class="form-group" style="grid-column:1/-1;display:flex;align-items:center;gap:var(--space-3)">
           <input type="checkbox" id="lp-edit-aktiv" style="width:18px;height:18px;cursor:pointer"/>
           <label for="lp-edit-aktiv" style="cursor:pointer;font-size:var(--text-sm)">Lehrperson aktiv</label>
         </div>
+      </div>
+      <div style="margin-top:var(--space-5);border-top:1px solid var(--color-divider);padding-top:var(--space-4)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)">
+          <span style="font-size:var(--text-sm);font-weight:600">Klassen &amp; Rollen</span>
+          <button class="btn-sm btn-accent-sm" type="button" onclick="addLpKlasseRow()">+ Klasse hinzufügen</button>
+        </div>
+        <div id="lp-klassen-rollen-list" style="display:flex;flex-direction:column;gap:var(--space-2)"></div>
       </div>
     </div>
     <div class="modal-footer">
