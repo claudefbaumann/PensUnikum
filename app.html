@@ -3118,7 +3118,26 @@ function renderStundenplan() {
     grid += '<td style="padding:4px 6px;text-align:center;background:var(--color-surface-offset);border:1px solid var(--color-border);height:'+rowH+'px;vertical-align:middle">'
       +'<div style="font-size:11px;font-weight:700;color:var(--color-text-muted);line-height:1.1">'+l+'</div>'
       +'<div style="font-size:9px;color:var(--color-text-faint);line-height:1.2;margin-top:1px">'+lektTime(l)+'</div>'
-      +'<div style="font-size:9px;color:var(--color-text-faint);line-height:1.2">'+lektTimeEnd(l)+'</div>'
+      +(()=>{
+        // For doppel cells in this row: show end of l+1 + pause durations between l and l+1
+        const hasDoppelInRow = Array.from({length:TAGE}, (_,tt)=>zellen[tt][l]?.doppel).some(Boolean);
+        if (hasDoppelInRow) {
+          const vid2r = window._sp_current_vid || editTargetId || window._active_verband_id || window._last_verband_id;
+          const apR = (typeof _sp_pausen_map !== 'undefined' && _sp_pausen_map[vid2r]) ? _sp_pausen_map[vid2r]
+            : ((typeof VERBAENDE !== 'undefined' && VERBAENDE.find(x=>x.id===vid2r)?.pausen) || []);
+          const t2mR = t => { const[h,m]=(t||'00:00').split(':'); return (+h)*60+(+m); };
+          const endL  = startMins + (l-1)*(lektMin+pauseMin) + lektMin;
+          const endL1 = startMins + l*(lektMin+pauseMin) + lektMin;
+          const extraMin = apR
+            .filter(p => t2mR(p.von) > endL && t2mR(p.von) <= endL1)
+            .reduce((sum,p) => sum + (t2mR(p.bis) - t2mR(p.von)), 0);
+          const rawEnd = endL1 + extraMin;
+          const h=Math.floor(rawEnd/60), m=rawEnd%60;
+          const endStr = String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+          return '<div style="font-size:9px;color:var(--color-text-faint);line-height:1.2">'+endStr+'</div>';
+        }
+        return '<div style="font-size:9px;color:var(--color-text-faint);line-height:1.2">'+lektTimeEnd(l)+'</div>';
+      })()
       +'</td>';
     for (let t = 0; t < TAGE; t++) {
       const z = zellen[t][l];
