@@ -833,7 +833,7 @@ let editTargetId = null;
 async function loadVerbaende() {
   const { data, error } = await db
     .from('verbaende')
-    .select('id,name,kuerzel,domain,status,sl_name,sl_email,lektionslaenge_min,pausen_json,einladungen(status,gesendet_am),schulhaeuser:schulhaeuser(count)')
+    .select('id,name,kuerzel,domain,status,sl_name,sl_email,lektionslaenge_min,einladungen(status,gesendet_am),schulhaeuser:schulhaeuser(count)')
     .order('name');
   if (error) { console.error(error); return; }
   VERBAENDE = (data || []).map(v => ({
@@ -849,7 +849,7 @@ async function loadVerbaende() {
     einladungStatus: (v.einladungen && v.einladungen[0]) ? v.einladungen[0].status : 'ausstehend',
     einladungDatum: (v.einladungen && v.einladungen[0]) ? v.einladungen[0].gesendet_am : null,
     lektionslaenge_min: v.lektionslaenge_min || 45,
-    pausen: (() => { try { return JSON.parse(v.pausen_json || '[]'); } catch(e){ return []; } })(),
+    pausen: [],
   }));
 }
 
@@ -859,7 +859,6 @@ async function saveVerbandDB(data, editId) {
     sl_name: data.slName,
     sl_email: data.slEmail, status: data.status,
     lektionslaenge_min: data.lektionslaenge || 45,
-    pausen_json: JSON.stringify(data.pausen || []),
     aktualisiert_am: new Date().toISOString()
   };
   if (editId) {
@@ -1123,8 +1122,19 @@ async function saveVerband() {
   const ok = await saveVerbandDB(data, editId);
   if (btn) { btn.textContent = 'Speichern & Einladung senden'; btn.disabled = false; }
   if (ok) {
+    // Pausen lokal im VERBAENDE-Array persistieren (kein DB-Feld nötig)
+    const savedPausen = data.pausen || [];
+    if (editId) {
+      const vbEntry = VERBAENDE.find(x => x.id === editId);
+      if (vbEntry) vbEntry.pausen = savedPausen;
+    }
     showToast(editId ? 'Verband aktualisiert' : 'Verband erstellt & Einladung vorbereitet');
     await showVbList();
+    // Pausen nach reload wieder setzen
+    if (editId) {
+      const vbEntry2 = VERBAENDE.find(x => x.id === editId);
+      if (vbEntry2) vbEntry2.pausen = savedPausen;
+    }
   }
 }
 
