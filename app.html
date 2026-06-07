@@ -861,6 +861,7 @@ async function saveVerbandDB(data, editId) {
     sl_name: data.slName,
     sl_email: data.slEmail, status: data.status,
     lektionslaenge_min: data.lektionslaenge || 45,
+    pausen_json: JSON.stringify(data.pausen || []),
     aktualisiert_am: new Date().toISOString()
   };
   if (editId) {
@@ -2834,16 +2835,39 @@ let _sp_last_vid = null;
 
 async function loadStundenplan() {
   const klasseId = document.getElementById('sp-klasse-select')?.value;
-  // Reset klassen wenn Verband gewechselt
   const vid = editTargetId || window._active_verband_id || window._last_verband_id;
+  window._sp_current_vid = vid;
+
   if (_sp_klassen.length === 0 || _sp_last_vid !== vid) {
     _sp_klassen = [];
     _sp_last_vid = vid;
   }
 
-  // Klassen laden (einmalig pro Verband)
+  // Klassen + Pausen laden (einmalig pro Verband)
   if (_sp_klassen.length === 0) {
     if (vid) {
+      // Pausen aus DB laden (pausen_json Spalte, graceful fallback)
+      try {
+        const { data: vbRow } = await db.from('verbaende')
+          .select('pausen_json,lektionslaenge_min')
+          .eq('id', vid).single();
+        if (vbRow) {
+          if (vbRow.pausen_json) {
+            try { _sp_pausen_map[vid] = JSON.parse(vbRow.pausen_json); } catch(e) {}
+          }
+          if (vbRow.lektionslaenge_min) {
+            const lEl = document.getElementById('sp-lektlaenge');
+            if (lEl) lEl.value = vbRow.lektionslaenge_min;
+          }
+        }
+      } catch(e) {}
+
+      // Falls keine DB-Pausen, aus lokalem _sp_pausen_map oder VERBAENDE
+      if (!_sp_pausen_map[vid]) {
+        const vbLocal = (typeof VERBAENDE !== 'undefined') ? VERBAENDE.find(x=>x.id===vid) : null;
+        _sp_pausen_map[vid] = (vbLocal && vbLocal.pausen) ? vbLocal.pausen : [];
+      }
+
       const { data: shRows } = await db.from('schulhaeuser').select('id').eq('verband_id', vid);
       const shIds = (shRows||[]).map(s=>s.id);
       const { data: kl1 } = await db.from('schulklassen').select('id,bezeichnung').eq('verband_id', vid).order('bezeichnung');
@@ -2870,8 +2894,6 @@ async function loadStundenplan() {
     .eq('schulklasse_id', klasseId);
   _sp_faecher = faecher || [];
 
-  console.log('[SP] pausen_map:', JSON.stringify(_sp_pausen_map));
-  console.log('[SP] _sp_current_vid:', window._sp_current_vid);
   renderStundenplan();
 }
 
