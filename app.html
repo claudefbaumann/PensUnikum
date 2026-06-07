@@ -3101,14 +3101,27 @@ function renderStundenplan() {
       const ht = (z && z.doppel) ? rowH*2+1 : rowH;
       if (z && z.fach) {
         const f = z.fach;
-        const lp = f.benutzer ? (f.benutzer.vorname ? f.benutzer.vorname[0]+'. '+f.benutzer.nachname : f.benutzer.nachname) : '';
+        // lp wird in new cell block direkt gehandelt
         const farbe = farbMap[f.id];
         const showRaum = document.getElementById('sp-show-raum')?.checked;
-        const schulhausName = (showRaum && f.schulhaus && f.schulhaus.name) ? f.schulhaus.name : '';
+        const lpName = f.benutzer
+          ? ((f.benutzer.vorname || '') + ' ' + (f.benutzer.nachname || '')).trim()
+          : 'keine Lehrperson';
+        const lpColor = f.benutzer ? 'var(--color-text-muted)' : 'var(--color-text-faint)';
+        const schulhausName = (f.schulhaus && f.schulhaus.name) ? f.schulhaus.name : 'kein Schulhaus';
+        const schulhausColor = (f.schulhaus && f.schulhaus.name) ? 'var(--color-text-muted)' : 'var(--color-text-faint)';
         grid += '<td'+rowspan+' style="padding:5px 8px;border:1px solid var(--color-border);background:'+farbe+'1a;vertical-align:middle;height:'+ht+'px">'
           + '<div style="font-size:12px;font-weight:700;color:'+farbe+';line-height:1.3">'+f.fach_name+'</div>'
-          + (lp ? '<div style="display:flex;align-items:center;gap:3px;margin-top:2px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;color:var(--color-text-faint)"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span style="font-size:10px;color:var(--color-text-muted)">'+lp+'</span></div>' : '')
-          + (schulhausName ? '<div style="display:flex;align-items:center;gap:3px;margin-top:1px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;color:var(--color-text-faint)"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span style="font-size:10px;color:var(--color-text-faint)">'+schulhausName+'</span></div>' : '')
+          + '<div style="display:flex;align-items:center;gap:3px;margin-top:3px">'
+          +   '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="'+lpColor+'" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+          +   '<span style="font-size:10px;color:'+lpColor+';font-style:'+(f.benutzer?'normal':'italic')+'">'+lpName+'</span>'
+          + '</div>'
+          + (showRaum
+            ? '<div style="display:flex;align-items:center;gap:3px;margin-top:2px">'
+              + '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="'+schulhausColor+'" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>'
+              + '<span style="font-size:10px;color:'+schulhausColor+';font-style:'+(f.schulhaus&&f.schulhaus.name?'normal':'italic')+'">'+schulhausName+'</span>'
+              + '</div>'
+            : '')
           + '</td>';
       } else {
         grid += '<td style="border:1px solid var(--color-border);background:var(--color-surface);height:'+rowH+'px"></td>';
