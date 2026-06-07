@@ -2730,7 +2730,6 @@ const SP_FARBEN = [
   '#d19900','#006494','#a12c7b','#da7101','#964219'
 ];
 let _sp_faecher = [];
-let _sp_lektionen = [];
 let _sp_klassen = [];
 let _sp_last_vid = null;
 
@@ -2772,11 +2771,6 @@ async function loadStundenplan() {
     .eq('schulklasse_id', klasseId);
   _sp_faecher = faecher || [];
 
-  // Lektionen aus lektionsplanung laden falls vorhanden
-  const { data: lekt } = await db.from('lektionsplanung')
-    .select('*').eq('klasse_id', klasseId);
-  _sp_lektionen = lekt || [];
-
   renderStundenplan();
 }
 
@@ -2792,10 +2786,6 @@ function renderStundenplan() {
   const farbMap = {};
   _sp_faecher.forEach((f,i) => { farbMap[f.id] = SP_FARBEN[i % SP_FARBEN.length]; });
 
-  // Max Lektionen bestimmen
-  const maxLekt = Math.max(8, ..._sp_faecher.map(f => f.lektionen_pro_woche||0));
-  const lektionen = Math.min(maxLekt, 12);
-
   // Legende
   const legende = document.getElementById('sp-legende');
   legende.innerHTML = _sp_faecher.map(f => {
@@ -2803,76 +2793,85 @@ function renderStundenplan() {
     return '<div style="display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:var(--radius-full);background:'+farbMap[f.id]+'22;border:1px solid '+farbMap[f.id]+'44;font-size:var(--text-xs)">'
       + '<span style="width:10px;height:10px;border-radius:50%;background:'+farbMap[f.id]+';flex-shrink:0"></span>'
       + '<strong>'+f.fach_name+'</strong>'
-      + '<span style="color:var(--color-text-muted)">'+lp+'</span>'
-      + '<span style="color:var(--color-text-faint)">'+f.lektionen_pro_woche+'L/W</span>'
+      + '<span style="color:var(--color-text-muted);margin-left:2px">'+lp+'</span>'
+      + '<span style="color:var(--color-text-faint);margin-left:4px">'+f.lektionen_pro_woche+'L/W</span>'
       + '</div>';
   }).join('');
 
-  // Grid aufbauen
-  const colW = 160; const rowH = 52;
-  let grid = '<table style="border-collapse:collapse;min-width:'+(SP_TAGE.length*colW+80)+'px;width:100%">';
+  // Max Lektionen pro Tag berechnen
+  const maxProTag = Math.max(6, Math.ceil(_sp_faecher.reduce((s,f)=>s+(f.lektionen_pro_woche||0),0) / 5));
+  const LEKTIONEN = Math.min(maxProTag + 1, 10);
+  const TAGE = 5;
 
-  // Header
-  grid += '<thead><tr><th style="width:60px;padding:8px;text-align:center;font-size:var(--text-xs);color:var(--color-text-muted);background:var(--color-surface-offset);border:1px solid var(--color-border)">Std.</th>';
-  SP_TAGE.forEach(t => {
-    grid += '<th style="padding:8px 12px;text-align:center;font-size:var(--text-sm);font-weight:600;background:var(--color-surface-offset);border:1px solid var(--color-border);min-width:'+colW+'px">'+t+'</th>';
-  });
-  grid += '</tr></thead><tbody>';
+  // Zellen-Matrix aufbauen [tag][lektion] = null | {fach, doppel?, skip?}
+  const zellen = Array.from({length:TAGE}, () => Array(LEKTIONEN+1).fill(null));
 
-  // Fächer gleichmässig auf Wochentage verteilen (einfache Logik)
-  // Erstelle Zellen-Map: [tag][lektion] = fach
-  const zellen = {};
-  SP_TAGE.forEach((_,ti) => { zellen[ti] = {}; });
-
-  // Lektionen verteilen: für jedes Fach lektionen_pro_woche Zellen belegen
+  // Fächer verteilen: Round-Robin über Tage, Doppellektionen zuerst
   _sp_faecher.forEach(fach => {
-    let lRestDoppel = fach.doppellektionen_pro_woche || 0;
-    let lRest = fach.lektionen_pro_woche || 0;
-    // Doppellektionen zuerst (2 aufeinanderfolgende Slots)
-    for (let t=0; t<SP_TAGE.length && lRest>0; t++) {
-      if (lRestDoppel > 0) {
-        // Suche freie aufeinanderfolgende Slots
-        for (let l=1; l<lektionen; l++) {
-          if (!zellen[t][l] && !zellen[t][l+1]) {
-            zellen[t][l] = { fach, doppel: true };
-            zellen[t][l+1] = { fach, skip: true };
-            lRestDoppel--; lRest -= 2;
+    let restDoppel = fach.doppellektionen_pro_woche || 0;
+    let restEinzel = (fach.lektionen_pro_woche || 0) - restDoppel * 2;
+
+    // Doppellektionen platzieren
+    for (let t = 0; t < TAGE && restDoppel > 0; t++) {
+      for (let l = 1; l < LEKTIONEN && restDoppel > 0; l++) {
+        if (!zellen[t][l] && !zellen[t][l+1]) {
+          zellen[t][l]   = { fach, doppel: true };
+          zellen[t][l+1] = { fach, skip: true };
+          restDoppel--;
+          break;
+        }
+      }
+    }
+    // Einzellektionen gleichmässig auf Tage verteilen (Round-Robin)
+    let startTag = 0;
+    while (restEinzel > 0) {
+      let placed = false;
+      for (let t = startTag; t < TAGE && restEinzel > 0; t++) {
+        for (let l = 1; l <= LEKTIONEN && restEinzel > 0; l++) {
+          if (!zellen[t][l]) {
+            zellen[t][l] = { fach };
+            restEinzel--;
+            startTag = (t + 1) % TAGE;
+            placed = true;
             break;
           }
         }
       }
-    }
-    // Einzellektionen
-    for (let t=0; t<SP_TAGE.length && lRest>0; t++) {
-      for (let l=1; l<=lektionen && lRest>0; l++) {
-        if (!zellen[t][l]) {
-          zellen[t][l] = { fach };
-          lRest--;
-        }
-      }
+      if (!placed) break; // Kein Platz mehr
     }
   });
 
-  // Rows
-  for (let l=1; l<=lektionen; l++) {
+  // Tabelle rendern
+  const rowH = 52;
+  let grid = '<table style="border-collapse:collapse;width:100%;table-layout:fixed">';
+  grid += '<colgroup><col style="width:48px">' + SP_TAGE.map(()=>'<col>').join('') + '</colgroup>';
+  grid += '<thead><tr>';
+  grid += '<th style="padding:8px 4px;text-align:center;font-size:10px;font-weight:600;color:var(--color-text-muted);background:var(--color-surface-offset);border:1px solid var(--color-border)">Std.</th>';
+  SP_TAGE.forEach(t => {
+    grid += '<th style="padding:10px;text-align:center;font-size:var(--text-sm);font-weight:700;background:var(--color-surface-offset);border:1px solid var(--color-border)">'+t+'</th>';
+  });
+  grid += '</tr></thead><tbody>';
+
+  for (let l = 1; l <= LEKTIONEN; l++) {
     grid += '<tr>';
-    grid += '<td style="padding:4px 8px;text-align:center;font-size:var(--text-xs);font-weight:600;color:var(--color-text-muted);background:var(--color-surface-offset);border:1px solid var(--color-border)">'+l+'</td>';
-    SP_TAGE.forEach((_,ti) => {
-      const z = zellen[ti][l];
-      if (z && z.skip) return; // merged cell
+    grid += '<td style="padding:4px;text-align:center;font-size:11px;font-weight:700;color:var(--color-text-muted);background:var(--color-surface-offset);border:1px solid var(--color-border);height:'+rowH+'px">'+l+'</td>';
+    for (let t = 0; t < TAGE; t++) {
+      const z = zellen[t][l];
+      if (z && z.skip) continue;
       const rowspan = (z && z.doppel) ? ' rowspan="2"' : '';
+      const ht = (z && z.doppel) ? rowH*2+1 : rowH;
       if (z && z.fach) {
         const f = z.fach;
         const lp = f.benutzer ? f.benutzer.vorname[0]+'. '+f.benutzer.nachname : '';
         const farbe = farbMap[f.id];
-        grid += '<td'+rowspan+' style="padding:6px 10px;border:1px solid var(--color-border);background:'+farbe+'18;vertical-align:middle;height:'+rowH+'px">'
-          + '<div style="font-size:var(--text-xs);font-weight:600;color:'+farbe+';line-height:1.3">'+f.fach_name+'</div>'
+        grid += '<td'+rowspan+' style="padding:6px 8px;border:1px solid var(--color-border);background:'+farbe+'1a;vertical-align:middle;height:'+ht+'px">'
+          + '<div style="font-size:12px;font-weight:700;color:'+farbe+';line-height:1.3">'+f.fach_name+'</div>'
           + (lp ? '<div style="font-size:10px;color:var(--color-text-muted);margin-top:2px">'+lp+'</div>' : '')
           + '</td>';
       } else {
-        grid += '<td style="padding:6px;border:1px solid var(--color-border);background:var(--color-surface);height:'+rowH+'px"></td>';
+        grid += '<td style="border:1px solid var(--color-border);background:var(--color-surface);height:'+rowH+'px"></td>';
       }
-    });
+    }
     grid += '</tr>';
   }
   grid += '</tbody></table>';
