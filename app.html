@@ -450,8 +450,19 @@
               <button class="btn-sm btn-accent-sm" onclick="openKlasseModal()">+ Klasse erfassen</button>
             </div>
             <table>
-              <thead><tr><th>Klasse</th><th>Stufe</th><th>Schuljahr</th><th>Schulhaus-Zuweisung</th><th></th></tr></thead>
+              <thead><tr><th>Klasse</th><th>Stufe</th><th>Schuljahr</th><th>HomeBase</th><th>Schulhaus-Zuweisung</th><th></th></tr></thead>
               <tbody id="vb-detail-klassen"></tbody>
+            </table>
+          </div>
+          <!-- ── RÄUME CARD ── -->
+          <div id="vb-raeume-card" style="margin-top:var(--space-6);display:none">
+            <div class="card-header">
+              <span class="card-title" id="vb-raeume-title">Schulräume</span>
+              <button class="btn-sm btn-accent-sm" onclick="openRaumModal()">+ Raum erfassen</button>
+            </div>
+            <table>
+              <thead><tr><th>Bezeichnung</th><th></th></tr></thead>
+              <tbody id="vb-detail-raeume"></tbody>
             </table>
           </div>
 
@@ -1131,8 +1142,80 @@ async function loadSchulhaeuser(verbandId) {
   }).join('');
 }
 
+
+// ── SCHULRÄUME ──
+let _raeume = [];
+
+async function loadRaeume(schulhausId, schulhausName) {
+  const card = document.getElementById('vb-raeume-card');
+  document.getElementById('vb-raeume-title').textContent = 'Schulräume — ' + (schulhausName || '');
+  card.style.display = 'block';
+  const tbody = document.getElementById('vb-detail-raeume');
+  tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:12px;color:var(--color-text-muted)">Lädt…</td></tr>';
+  const { data, error } = await db.from('schulraeume').select('id,bezeichnung').eq('schulhaus_id', schulhausId).eq('aktiv', true).order('bezeichnung');
+  if (error) { console.error(error); return; }
+  _raeume = data || [];
+  if (!_raeume.length) {
+    tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:20px;color:var(--color-text-muted)">Noch keine Räume erfasst</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _raeume.map(rm =>
+    '<tr>'
+    + '<td style="padding:var(--space-2) var(--space-3)">' + rm.bezeichnung + '</td>'
+    + '<td style="padding:var(--space-2) var(--space-3);display:flex;gap:4px;justify-content:flex-end">'
+    + '<button class="btn-sm btn-outline-sm" onclick="openRaumModal(\''+rm.id+'\')">✏️</button>'
+    + '<button class="btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="deleteRaum(\''+rm.id+'\',\''+rm.bezeichnung+'\')">🗑</button>'
+    + '</td></tr>'
+  ).join('');
+}
+
+function openRaumModal(editId) {
+  document.getElementById('raum-edit-id').value = editId || '';
+  document.getElementById('raum-schulhaus-id').value = currentSchulhausId || '';
+  document.getElementById('raum-modal-title').textContent = editId ? 'Schulraum bearbeiten' : 'Schulraum erfassen';
+  if (!editId) {
+    document.getElementById('raum-bezeichnung').value = '';
+  } else {
+    const rm = _raeume.find(x => x.id === editId);
+    if (rm) document.getElementById('raum-bezeichnung').value = rm.bezeichnung || '';
+  }
+  document.getElementById('modal-raum').classList.add('active');
+}
+function closeRaumModal() { document.getElementById('modal-raum').classList.remove('active'); }
+
+async function saveRaum() {
+  const editId = document.getElementById('raum-edit-id').value;
+  const bezeichnung = document.getElementById('raum-bezeichnung').value.trim();
+  if (!bezeichnung) { alert('Bitte Bezeichnung eingeben'); return; }
+  const payload = {
+    bezeichnung,
+    schulhaus_id: document.getElementById('raum-schulhaus-id').value,
+    aktiv: true
+  };
+  if (editId) {
+    const { error } = await db.from('schulraeume').update(payload).eq('id', editId);
+    if (error) { alert('Fehler: ' + error.message); return; }
+  } else {
+    const { error } = await db.from('schulraeume').insert(payload);
+    if (error) { alert('Fehler: ' + error.message); return; }
+  }
+  closeRaumModal();
+  const shName = document.getElementById('vb-raeume-title').textContent.replace('Schulräume — ','');
+  await loadRaeume(currentSchulhausId, shName);
+  showToast(editId ? '✅ Raum aktualisiert' : '✅ Raum erfasst');
+}
+
+async function deleteRaum(id, bezeichnung) {
+  if (!confirm('Raum «' + bezeichnung + '» wirklich löschen?')) return;
+  const { error } = await db.from('schulraeume').delete().eq('id', id);
+  if (error) { alert('Fehler: ' + error.message); return; }
+  const shName = document.getElementById('vb-raeume-title').textContent.replace('Schulräume — ','');
+  await loadRaeume(currentSchulhausId, shName);
+  showToast('🗑 Raum gelöscht');
+}
+
 // ── SCHULKLASSEN ──
-function openKlasseModal(editId) {
+async function openKlasseModal(editId) {
   document.getElementById('klasse-edit-id').value = editId || '';
   document.getElementById('klasse-schulhaus-id').value = currentSchulhausId || '';
   // Load Stufen from Verband
@@ -1153,6 +1236,20 @@ function openKlasseModal(editId) {
       document.getElementById('klasse-schuljahr').value = k.schuljahr || '';
     }
   }
+  // Load Räume for HomeBase dropdown
+  const hbSel = document.getElementById('klasse-homebase-raum');
+  const shId = document.getElementById('klasse-schulhaus-id').value;
+  if (shId) {
+    const { data: raeume } = await db.from('schulraeume').select('id,bezeichnung').eq('schulhaus_id', shId).eq('aktiv', true).order('bezeichnung');
+    hbSel.innerHTML = '<option value="">– kein Standardraum –</option>'
+      + (raeume||[]).map(rm => '<option value="'+rm.id+'">'+rm.bezeichnung+'</option>').join('');
+  }
+  if (editId) {
+    const k = window._klassen && window._klassen.find(x => x.id === editId);
+    if (k) hbSel.value = k.homebase_raum_id || '';
+  } else {
+    hbSel.value = '';
+  }
   document.getElementById('modal-klasse').classList.add('active');
 }
 function closeKlasseModal() { document.getElementById('modal-klasse').classList.remove('active'); }
@@ -1161,13 +1258,15 @@ async function saveKlasse() {
   const editId = document.getElementById('klasse-edit-id').value;
   const stufeKey = document.getElementById('klasse-stufe').value;
   const stufeLbl = _verband_stufen.find(s=>s.stufe_key===stufeKey)?.stufe_label || stufeKey;
+  const hbVal = document.getElementById('klasse-homebase-raum').value;
   const payload = {
     bezeichnung: document.getElementById('klasse-bezeichnung').value,
     stufe: stufeLbl,
     stufe_key: stufeKey,
     schuljahr: document.getElementById('klasse-schuljahr').value,
     schulhaus_id: document.getElementById('klasse-schulhaus-id').value,
-    verband_id: editTargetId
+    verband_id: editTargetId,
+    homebase_raum_id: hbVal || null
   };
   if (!payload.bezeichnung) { alert('Bitte Bezeichnung eingeben'); return; }
   if (editId) {
@@ -1188,13 +1287,14 @@ async function loadKlassen(schulhausId, schulhausName) {
   const card = document.getElementById('vb-klassen-card');
   card.style.display = 'block';
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  await loadRaeume(schulhausId, schulhausName);
   const tbody = document.getElementById('vb-detail-klassen');
-  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--color-text-muted)">Lädt…</td></tr>';
-  const { data, error } = await db.from('schulklassen').select('id,bezeichnung,stufe,stufe_key,schuljahr,schulhaus_id,zuweisung_modus,verband_id').eq('schulhaus_id', schulhausId).order('bezeichnung');
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--color-text-muted)">Lädt…</td></tr>';
+  const { data, error } = await db.from('schulklassen').select('id,bezeichnung,stufe,stufe_key,schuljahr,schulhaus_id,zuweisung_modus,verband_id,homebase_raum_id,schulraeume(bezeichnung)').eq('schulhaus_id', schulhausId).order('bezeichnung');
   if (error) { console.error(error); return; }
   window._klassen = data || [];
   if (!data || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--color-text-muted)">Noch keine Klassen erfasst — klicke «+ Klasse erfassen»</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--color-text-muted)">Noch keine Klassen erfasst — klicke «+ Klasse erfassen»</td></tr>';
     return;
   }
   tbody.innerHTML = data.map((k, i) => {
@@ -1205,6 +1305,7 @@ async function loadKlassen(schulhausId, schulhausName) {
       + '<div class="cell-name">' + k.bezeichnung + '</div></div></td>'
       + '<td><span class="badge badge-muted">' + stufe + '</span></td>'
       + '<td>' + jahr + '</td>'
+      + '<td>' + (k.schulraeume ? '<span class="badge badge-muted">🏠 ' + k.schulraeume.bezeichnung + '</span>' : '<span style="color:var(--color-text-faint);font-size:var(--text-xs)">—</span>') + '</td>'
       + '<td><button class="btn-sm btn-outline-sm" onclick="openSchulhausZuweisungModal(\''+k.id+'\',\''+encodeURIComponent(k.bezeichnung)+'\')" style="font-size:var(--text-xs)">' + (k.zuweisung_modus==='faecher' ? '🏫 Fachweise' : (k.schulhaus_id ? '🏫 Ganze Klasse' : '— zuordnen')) + '</button></td>'      + '<td style="display:flex;gap:4px">'      + '<button class="btn-sm btn-outline-sm" onclick="openKlasseModal(\''+k.id+'\')">✏️</button>'      + '<button class="btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="deleteKlasse(\''+k.id+'\',\''+k.bezeichnung+'\')">🗑</button>'
       + '</td></tr>';
   }).join('');
@@ -2370,6 +2471,11 @@ function closeSchulhausZuweisungModal() {
         </select>
       </div>
       <div class="form-group"><label class="form-label">Schuljahr</label><input class="form-input" id="klasse-schuljahr" value="2025/26"/></div>
+      <div class="form-group" style="grid-column:1/-1"><label class="form-label">HomeBase (Standardraum)</label>
+        <select class="form-input" id="klasse-homebase-raum">
+          <option value="">– kein Standardraum –</option>
+        </select>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeKlasseModal()">Abbrechen</button>
@@ -2604,6 +2710,25 @@ function closeSchulhausZuweisungModal() {
     <div class="modal-footer">
       <button class="btn-cancel" onclick="document.getElementById('modal-lp-edit').classList.remove('active')">Abbrechen</button>
       <button class="btn-sm btn-accent-sm" onclick="saveLpBearbeiten()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ RAUM MODAL ══ -->
+<div class="modal-overlay" id="modal-raum">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="raum-modal-title">Schulraum erfassen</span>
+      <button class="icon-btn" onclick="closeRaumModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body modal-grid">
+      <input type="hidden" id="raum-edit-id"/>
+      <input type="hidden" id="raum-schulhaus-id"/>
+      <div class="form-group" style="grid-column:1/-1"><label class="form-label">Bezeichnung *</label><input class="form-input" id="raum-bezeichnung" placeholder="z.B. Zimmer 12, Turnhalle, Bibliothek"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeRaumModal()">Abbrechen</button>
+      <button class="btn-primary" onclick="saveRaum()">Speichern</button>
     </div>
   </div>
 </div>
