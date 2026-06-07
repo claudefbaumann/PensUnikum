@@ -694,7 +694,12 @@
       </div>
 <div class="panel" id="panel-stundenplan">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6);flex-wrap:wrap;gap:var(--space-3)">
-    <h2 style="font-size:var(--text-xl);font-weight:700;font-family:var(--font-display)">Stundenplan</h2>
+    <div style="display:flex;align-items:center;gap:var(--space-3)">
+      <h2 style="font-size:var(--text-xl);font-weight:700;font-family:var(--font-display)">Stundenplan</h2>
+      <button class="btn-sm btn-outline-sm" onclick="printStundenplan()" style="display:flex;align-items:center;gap:4px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>PDF drucken
+      </button>
+    </div>
     <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap">
       <select class="form-input" id="sp-klasse-select" style="min-width:180px" onchange="loadStundenplan()">
         <option value="">— Klasse wählen —</option>
@@ -1119,18 +1124,16 @@ async function saveVerband() {
   const ok = await saveVerbandDB(data, editId);
   if (btn) { btn.textContent = 'Speichern & Einladung senden'; btn.disabled = false; }
   if (ok) {
-    // Pausen lokal im VERBAENDE-Array persistieren (kein DB-Feld nötig)
     const savedPausen = data.pausen || [];
-    if (editId) {
-      const vbEntry = VERBAENDE.find(x => x.id === editId);
-      if (vbEntry) vbEntry.pausen = savedPausen;
-    }
+    const savedVid = editId || null;
+    if (savedVid) _sp_pausen_map[savedVid] = savedPausen;
     showToast(editId ? 'Verband aktualisiert' : 'Verband erstellt & Einladung vorbereitet');
     await showVbList();
-    // Pausen nach reload wieder setzen
-    if (editId) {
-      const vbEntry2 = VERBAENDE.find(x => x.id === editId);
-      if (vbEntry2) vbEntry2.pausen = savedPausen;
+    // Pausen nach reload wiederherstellen
+    if (savedVid) {
+      _sp_pausen_map[savedVid] = savedPausen;
+      const vbEntry = VERBAENDE.find(x => x.id === savedVid);
+      if (vbEntry) vbEntry.pausen = savedPausen;
     }
   }
 }
@@ -1833,6 +1836,7 @@ async function saveLpBearbeiten() {
   const id = document.getElementById('lp-edit-id').value;
   if (!id) return;
   const vid = editTargetId || window._active_verband_id || window._last_verband_id;
+  window._sp_current_vid = vid; // für renderStundenplan
   const payload = {
     vorname: document.getElementById('lp-edit-vorname').value.trim(),
     nachname: document.getElementById('lp-edit-nachname').value.trim(),
@@ -2825,6 +2829,7 @@ const SP_FARBEN = [
 ];
 let _sp_faecher = [];
 let _sp_klassen = [];
+let _sp_pausen_map = {}; // { verbandId: [pausen] }
 let _sp_last_vid = null;
 
 async function loadStundenplan() {
@@ -2866,6 +2871,38 @@ async function loadStundenplan() {
   _sp_faecher = faecher || [];
 
   renderStundenplan();
+}
+
+function printStundenplan() {
+  const klasseEl = document.getElementById('sp-klasse-select');
+  const klasseName = klasseEl ? (klasseEl.options[klasseEl.selectedIndex]?.text || 'Klasse') : 'Stundenplan';
+  const gridHTML  = document.getElementById('sp-grid-wrap')?.innerHTML || '';
+  const legendeHTML = document.getElementById('sp-legende')?.innerHTML || '';
+  const startzeit = document.getElementById('sp-startzeit')?.value || '08:00';
+  const lektMin   = document.getElementById('sp-lektlaenge')?.value || '45';
+  const w = window.open('', '_blank');
+  if (!w) { alert('Popup wurde blockiert. Bitte Popup-Blocker deaktivieren.'); return; }
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stundenplan ' + klasseName + '</title>'
+    + '<style>'
+    + '* { box-sizing:border-box; margin:0; padding:0; }'
+    + 'body { font-family:Arial,sans-serif; font-size:11px; padding:16px; color:#222; }'
+    + 'h1 { font-size:17px; margin-bottom:3px; }'
+    + '.meta { font-size:10px; color:#666; margin-bottom:10px; }'
+    + '.legende { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:12px; }'
+    + '.legende > div { display:flex; align-items:center; gap:4px; padding:2px 8px; border-radius:99px; font-size:10px; border:1px solid #ccc; }'
+    + 'table { border-collapse:collapse; width:100%; }'
+    + 'th,td { border:1px solid #bbb; padding:4px 6px; }'
+    + 'th { background:#f0f0f0; font-weight:600; text-align:center; }'
+    + 'td:first-child { text-align:center; background:#f5f5f5; width:68px; }'
+    + '@media print { @page { size:A4 landscape; margin:10mm; } }'
+    + '</style></head><body>'
+    + '<h1>Stundenplan — ' + klasseName + '</h1>'
+    + '<div class="meta">Beginn: ' + startzeit + ' | Lektionslänge: ' + lektMin + ' Min.</div>'
+    + '<div class="legende">' + legendeHTML + '</div>'
+    + gridHTML
+    + '<script>window.onload=function(){window.print();}<\/script>'
+    + '</body></html>');
+  w.document.close();
 }
 
 function renderStundenplan() {
@@ -2957,9 +2994,9 @@ function renderStundenplan() {
 
     // Pausen als breiter Balken über alle Tage
     if (l > 1) {
-      const vid2 = editTargetId || window._active_verband_id || window._last_verband_id;
+      const vid2 = window._sp_current_vid || editTargetId || window._active_verband_id || window._last_verband_id;
       const vb2  = (typeof VERBAENDE !== 'undefined') ? VERBAENDE.find(x => x.id === vid2) : null;
-      const activePausen = (vb2 && vb2.pausen) ? vb2.pausen : [];
+      const activePausen = (typeof _sp_pausen_map !== 'undefined' && _sp_pausen_map[vid2]) ? _sp_pausen_map[vid2] : ((vb2 && vb2.pausen) ? vb2.pausen : []);
       const t2m = t => { const[h,m]=(t||'00:00').split(':'); return (+h)*60+(+m); };
       const endPrev  = startMins + (l-2)*(lektMin+pauseMin) + lektMin;
       const startCur = startMins + (l-1)*(lektMin+pauseMin);
