@@ -3058,14 +3058,13 @@ function renderStundenplan() {
     function lektTime(n){ const tot=startMins+(n-1)*(lektMin+pauseMin); const h=Math.floor(tot/60),m=tot%60; return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
     function lektTimeEnd(n){ const tot=startMins+(n-1)*(lektMin+pauseMin)+lektMin; const h=Math.floor(tot/60),m=tot%60; return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
 
-    // Pausen als breiter Balken über alle Tage
+    // Pausen als breiter Balken über alle Tage (rowspan-aware)
     if (l > 1) {
       const vid2 = window._sp_current_vid || editTargetId || window._active_verband_id || window._last_verband_id;
       const activePausen = (typeof _sp_pausen_map !== 'undefined' && _sp_pausen_map[vid2])
         ? _sp_pausen_map[vid2]
         : ((typeof VERBAENDE !== 'undefined' && VERBAENDE.find(x=>x.id===vid2)?.pausen) || []);
       const t2m = t => { const[h,m]=(t||'00:00').split(':'); return (+h)*60+(+m); };
-      // Zeige Pause wenn ihre Von-Zeit zwischen Ende Lektion l-1 und Ende Lektion l liegt
       const endLPrev = startMins + (l-2)*(lektMin+pauseMin) + lektMin;
       const endLCur  = startMins + (l-1)*(lektMin+pauseMin) + lektMin;
       const pHere = activePausen
@@ -3073,18 +3072,44 @@ function renderStundenplan() {
         .sort((a,b) => t2m(a.von) - t2m(b.von));
       pHere.forEach(p => {
         const pDauer = t2m(p.bis) - t2m(p.von);
+        // Count how many tag-columns are occupied by a doppel rowspan at this point
+        // A doppel at tag t starts at row (l-1) with rowspan=2, so it occupies row l too
+        let freeStart = 0; // index of first free column after occupied ones
+        let occupiedCols = 0;
+        for (let tt = 0; tt < TAGE; tt++) {
+          if (zellen[tt][l-1] && zellen[tt][l-1].doppel) occupiedCols++;
+        }
         grid += '<tr>';
         grid += '<td style="padding:2px 4px;text-align:center;background:#fef3c7;border:1px solid #fcd34d;vertical-align:middle;white-space:nowrap">'
           + '<div style="font-size:9px;font-weight:700;color:#92400e;line-height:1.3">'+p.von+'</div>'
           + '<div style="font-size:9px;color:#b45309;line-height:1.3">'+p.bis+'</div>'
           + '</td>';
-        grid += '<td colspan="'+TAGE+'" style="padding:0;border:1px solid #fcd34d;background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%);vertical-align:middle;height:34px">'
-          + '<div style="display:flex;align-items:center;justify-content:center;gap:8px;height:34px">'
-          + '<span style="font-size:15px">☕</span>'
-          + '<span style="font-size:12px;font-weight:700;color:#78350f">'+p.bezeichnung+'</span>'
-          + '<span style="font-size:11px;color:#b45309;background:rgba(255,255,255,0.6);padding:1px 8px;border-radius:99px;border:1px solid #fcd34d">'+pDauer+' Min.</span>'
-          + '</div>'
-          + '</td>';
+        // For each tag: if previous row had doppel → skip (rowspan covers it), else draw pause
+        let freeCols = [];
+        for (let tt = 0; tt < TAGE; tt++) {
+          if (!(zellen[tt][l-1] && zellen[tt][l-1].doppel)) freeCols.push(tt);
+        }
+        if (freeCols.length > 0) {
+          // Group consecutive free columns into colspan segments with occupied gaps
+          let tt = 0;
+          while (tt < TAGE) {
+            if (zellen[tt][l-1] && zellen[tt][l-1].doppel) {
+              tt++; // skip — covered by rowspan
+            } else {
+              // count consecutive free cols
+              let span = 0;
+              while (tt + span < TAGE && !(zellen[tt+span][l-1] && zellen[tt+span][l-1].doppel)) span++;
+              grid += '<td colspan="'+span+'" style="padding:0;border:1px solid #fcd34d;background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%);vertical-align:middle;height:30px">'
+                + '<div style="display:flex;align-items:center;justify-content:center;gap:6px;height:30px">'
+                + '<span style="font-size:13px">☕</span>'
+                + '<span style="font-size:11px;font-weight:700;color:#78350f">'+p.bezeichnung+'</span>'
+                + '<span style="font-size:10px;color:#b45309;background:rgba(255,255,255,0.6);padding:1px 6px;border-radius:99px;border:1px solid #fcd34d">'+pDauer+' Min.</span>'
+                + '</div>'
+                + '</td>';
+              tt += span;
+            }
+          }
+        }
         grid += '</tr>';
       });
     }
