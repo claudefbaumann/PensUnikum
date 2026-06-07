@@ -1608,17 +1608,18 @@ async function savePerson(){
 async function openLpBearbeiten(lpId, verbandId) {
   const { data: lp } = await db.from('benutzer').select('*').eq('id', lpId).maybeSingle();
   if (!lp) { alert('Lehrperson nicht gefunden'); return; }
-  // Verband-ID bestimmen: Parameter > editTargetId > _active_verband_id > lp.verband_id
   const vid = verbandId || editTargetId || window._active_verband_id || window._last_verband_id || lp.verband_id;
+  console.log('[LP edit] lpId=', lpId, 'verbandId param=', verbandId, 'resolved vid=', vid);
   if (vid) { editTargetId = vid; window._active_verband_id = vid; window._last_verband_id = vid; }
   document.getElementById('lp-edit-id').value = lp.id;
+  document.getElementById('lp-edit-verband-id').value = vid || '';
   document.getElementById('lp-edit-vorname').value = lp.vorname || '';
   document.getElementById('lp-edit-nachname').value = lp.nachname || '';
   document.getElementById('lp-edit-email').value = lp.email || '';
   document.getElementById('lp-edit-rolle').value = lp.rolle || 'lehrperson';
   document.getElementById('lp-edit-modus').value = lp.modus || 'ohne_login';
   document.getElementById('lp-edit-aktiv').checked = lp.aktiv !== false;
-  await loadLpKlassenRollen(lp.id);
+  await loadLpKlassenRollen(lp.id, vid);
   document.getElementById('modal-lp-edit').classList.add('active');
 }
 
@@ -1635,38 +1636,32 @@ const LP_ROLLEN_OPTIONEN = [
 let _lp_klassen_rollen_rows = [];
 let _alle_klassen_vb = [];
 
-async function loadLpKlassenRollen(benutzerId) {
-  const vid = editTargetId || window._active_verband_id || window._last_verband_id;
+async function loadLpKlassenRollen(benutzerId, explicitVid) {
+  const vid = explicitVid || document.getElementById('lp-edit-verband-id')?.value || editTargetId || window._active_verband_id || window._last_verband_id;
+  console.log('[loadLpKlassenRollen] benutzerId=', benutzerId, 'vid=', vid);
   if (!vid) {
-    console.warn('loadLpKlassenRollen: kein editTargetId');
+    console.warn('loadLpKlassenRollen: keine Verband-ID!');
     _alle_klassen_vb = [];
   } else {
-    // Schulhäuser des Verbands laden
     const { data: shRows } = await db.from('schulhaeuser').select('id').eq('verband_id', vid);
     const shIds = (shRows || []).map(function(s){ return s.id; });
-    // Alle Klassen direkt via verband_id laden
     const { data: kl1 } = await db.from('schulklassen')
-      .select('id,bezeichnung,schulhaus_id')
-      .eq('verband_id', vid)
-      .order('bezeichnung');
-    // Klassen via schulhaus_id laden (falls shIds vorhanden)
+      .select('id,bezeichnung').eq('verband_id', vid).order('bezeichnung');
     let kl2 = [];
     if (shIds.length > 0) {
       const { data: k2 } = await db.from('schulklassen')
-        .select('id,bezeichnung,schulhaus_id')
-        .in('schulhaus_id', shIds)
-        .order('bezeichnung');
+        .select('id,bezeichnung').in('schulhaus_id', shIds).order('bezeichnung');
       kl2 = k2 || [];
     }
-    // Zusammenführen, Duplikate entfernen
     const all = (kl1 || []).concat(kl2);
     const seen = {};
     _alle_klassen_vb = all.filter(function(k){ if(seen[k.id]) return false; seen[k.id]=true; return true; });
+    console.log('[loadLpKlassenRollen] _alle_klassen_vb count=', _alle_klassen_vb.length);
   }
   const { data: existing } = await db.from('lp_klassen_rollen')
-    .select('id,klasse_id,rolle')
-    .eq('benutzer_id', benutzerId);
+    .select('id,klasse_id,rolle').eq('benutzer_id', benutzerId);
   _lp_klassen_rollen_rows = (existing || []).map(e => ({ _id: e.id, klasse_id: e.klasse_id, rolle: e.rolle }));
+  console.log('[loadLpKlassenRollen] rows=', _lp_klassen_rollen_rows.length);
   renderLpKlassenRollenList();
 }
 
@@ -3003,6 +2998,7 @@ function closeSchulhausZuweisungModal() {
     </div>
     <div class="modal-body">
       <input type="hidden" id="lp-edit-id"/>
+      <input type="hidden" id="lp-edit-verband-id"/>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
         <div class="form-group"><label class="form-label">Vorname</label><input class="form-input" id="lp-edit-vorname" placeholder="Vorname"/></div>
         <div class="form-group"><label class="form-label">Nachname</label><input class="form-input" id="lp-edit-nachname" placeholder="Nachname"/></div>
