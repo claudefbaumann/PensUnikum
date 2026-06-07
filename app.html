@@ -1178,7 +1178,7 @@ async function loadKlasseFaecher(klasseId, klasseName) {
   tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:12px;color:var(--color-text-muted)">Lädt…</td></tr>';
 
   const { data, error } = await db.from('klassen_faecher')
-    .select('id,fach_name,lektionen_pro_woche,doppellektionen_pro_woche,benutzer_id,benutzer(vorname,nachname)')
+    .select('id,fach_name,lektionen_pro_woche,doppellektionen_pro_woche,benutzer_id,benutzer:benutzer_id(vorname,nachname)')
     .eq('schulklasse_id', klasseId)
     .order('fach_name');
   if (error) { console.error(error); return; }
@@ -1189,7 +1189,7 @@ async function loadKlasseFaecher(klasseId, klasseName) {
     return;
   }
   tbody.innerHTML = _faecher.map(f => {
-    const lpName = f.benutzer ? f.benutzer.vorname + ' ' + f.benutzer.nachname : '—';
+    const lpName = (f.benutzer && f.benutzer.vorname) ? f.benutzer.vorname + ' ' + f.benutzer.nachname : '—';
     return '<tr>'
       + '<td style="padding:var(--space-2) var(--space-3);font-weight:500">' + f.fach_name + '</td>'
       + '<td style="padding:var(--space-2) var(--space-3);font-size:var(--text-xs);color:var(--color-text-muted)">' + lpName + '</td>'
@@ -1209,7 +1209,7 @@ async function openFachModal(editId) {
 
   // Load LPs for this Klasse from lp_klassen_rollen
   const { data: lpRows } = await db.from('lp_klassen_rollen')
-    .select('benutzer_id,benutzer(vorname,nachname)')
+    .select('benutzer_id,benutzer:benutzer_id(vorname,nachname)')
     .eq('klasse_id', _current_klasse_id);
   const lpSel = document.getElementById('fach-lp');
   lpSel.innerHTML = '<option value="">– keine Zuteilung –</option>'
