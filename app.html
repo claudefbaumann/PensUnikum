@@ -359,7 +359,7 @@
               <div class="form-group"><label class="form-label">Verbandsname *</label><input class="form-input" id="vb-name" placeholder="z.B. Schulverband Thun-Nord"/></div>
               <div class="form-group"><label class="form-label">Kürzel</label><input class="form-input" id="vb-kuerzel" placeholder="z.B. SVT" maxlength="4"/></div>
               <div class="form-group"><label class="form-label">Domain</label><input class="form-input" id="vb-domain" placeholder="z.B. thun-nord.ch"/></div>
-              <div class="form-group"><label class="form-label">Anzahl Schulhäuser</label><input class="form-input" type="number" id="vb-schulhaeuser" value="1" min="1" max="20"/></div>
+              
               <hr style="border:none;border-top:1px solid var(--color-divider);"/>
               <div style="font-size:var(--text-sm);font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.05em;">Verbandsleitung</div>
               <div class="form-group"><label class="form-label">Name *</label><input class="form-input" id="vb-sl-name" placeholder="Vorname Nachname"/></div>
@@ -774,7 +774,7 @@ let editTargetId = null;
 async function loadVerbaende() {
   const { data, error } = await db
     .from('verbaende')
-    .select('id,name,kuerzel,domain,schulhaeuser,status,sl_name,sl_email,einladungen(status,gesendet_am)')
+    .select('id,name,kuerzel,domain,status,sl_name,sl_email,einladungen(status,gesendet_am),schulhaeuser:schulhaeuser(count)')
     .order('name');
   if (error) { console.error(error); return; }
   VERBAENDE = (data || []).map(v => ({
@@ -782,7 +782,7 @@ async function loadVerbaende() {
     name: v.name,
     kuerzel: v.kuerzel || '??',
     domain: v.domain || '',
-    schulhaeuser: v.schulhaeuser || 1,
+    schulhaeuser: Array.isArray(v.schulhaeuser) ? (v.schulhaeuser[0]?.count || 0) : (v.schulhaeuser || 0),
     lehrpersonen: 0,
     status: v.status || 'aktiv',
     slName: v.sl_name || '',
@@ -795,7 +795,7 @@ async function loadVerbaende() {
 async function saveVerbandDB(data, editId) {
   const payload = {
     name: data.name, kuerzel: data.kuerzel, domain: data.domain,
-    schulhaeuser: data.schulhaeuser, sl_name: data.slName,
+    sl_name: data.slName,
     sl_email: data.slEmail, status: data.status,
     lektionslaenge_min: data.lektionslaenge || 45,
     aktualisiert_am: new Date().toISOString()
@@ -927,7 +927,6 @@ function showVbForm() {
   document.getElementById('vb-form-title').textContent = 'Neuer Schulverband';
   document.getElementById('vb-edit-id').value = '';
   ['vb-name','vb-kuerzel','vb-domain','vb-sl-name','vb-sl-email'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('vb-schulhaeuser').value = 1;
   document.getElementById('vb-status').value = 'aktiv';
 }
 
@@ -1003,7 +1002,6 @@ function editVerbandById(id) {
   document.getElementById('vb-name').value = v.name;
   document.getElementById('vb-kuerzel').value = v.kuerzel;
   document.getElementById('vb-domain').value = v.domain || '';
-  document.getElementById('vb-schulhaeuser').value = v.schulhaeuser;
   document.getElementById('vb-sl-name').value = v.slName;
   document.getElementById('vb-sl-email').value = v.slEmail;
   document.getElementById('vb-status').value = v.status;
@@ -1021,7 +1019,6 @@ async function saveVerband() {
     name: document.getElementById('vb-name').value || 'Unbenannter Verband',
     kuerzel: document.getElementById('vb-kuerzel').value || '??',
     domain: document.getElementById('vb-domain').value,
-    schulhaeuser: parseInt(document.getElementById('vb-schulhaeuser').value) || 1,
     slName: document.getElementById('vb-sl-name').value,
     slEmail: document.getElementById('vb-sl-email').value,
     status: document.getElementById('vb-status').value,
