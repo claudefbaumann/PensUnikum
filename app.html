@@ -1640,24 +1640,30 @@ let _alle_klassen_vb = [];
 async function loadLpKlassenRollen(benutzerId) {
   const vid = editTargetId || window._active_verband_id || window._last_verband_id;
   if (!vid) {
-    console.warn('loadLpKlassenRollen: kein editTargetId verfügbar');
+    console.warn('loadLpKlassenRollen: kein editTargetId');
     _alle_klassen_vb = [];
   } else {
-    // Schulklassen können via verband_id ODER via schulhaus.verband_id verknüpft sein
-    // Zuerst Schulhaus-IDs für diesen Verband holen
-    const { data: shRows } = await db.from('schulhaeuser')
-      .select('id').eq('verband_id', vid);
+    // Schulhäuser des Verbands laden
+    const { data: shRows } = await db.from('schulhaeuser').select('id').eq('verband_id', vid);
     const shIds = (shRows || []).map(function(s){ return s.id; });
-    // Dann Klassen: direkt via verband_id + via schulhaus_id
-    let query = db.from('schulklassen')
-      .select('id,bezeichnung,schulhaeuser:schulhaus_id(name)');
+    // Alle Klassen direkt via verband_id laden
+    const { data: kl1 } = await db.from('schulklassen')
+      .select('id,bezeichnung,schulhaus_id')
+      .eq('verband_id', vid)
+      .order('bezeichnung');
+    // Klassen via schulhaus_id laden (falls shIds vorhanden)
+    let kl2 = [];
     if (shIds.length > 0) {
-      query = query.or('verband_id.eq.' + vid + ',schulhaus_id.in.(' + shIds.join(',') + ')');
-    } else {
-      query = query.eq('verband_id', vid);
+      const { data: k2 } = await db.from('schulklassen')
+        .select('id,bezeichnung,schulhaus_id')
+        .in('schulhaus_id', shIds)
+        .order('bezeichnung');
+      kl2 = k2 || [];
     }
-    const { data: kl } = await query.order('bezeichnung');
-    _alle_klassen_vb = kl || [];
+    // Zusammenführen, Duplikate entfernen
+    const all = (kl1 || []).concat(kl2);
+    const seen = {};
+    _alle_klassen_vb = all.filter(function(k){ if(seen[k.id]) return false; seen[k.id]=true; return true; });
   }
   const { data: existing } = await db.from('lp_klassen_rollen')
     .select('id,klasse_id,rolle')
@@ -1678,8 +1684,7 @@ function renderLpKlassenRollenList() {
     return;
   }
   const klassenOpts = _alle_klassen_vb.map(k => {
-    const sh = (k.schulhaeuser && k.schulhaeuser.name) ? k.schulhaeuser.name + ' – ' : '';
-    return '<option value="' + k.id + '">' + sh + k.bezeichnung + '</option>';
+    return '<option value="' + k.id + '">' + k.bezeichnung + '</option>';
   }).join('');
   const rollenOpts = LP_ROLLEN_OPTIONEN.map(r =>
     '<option value="' + r.key + '">' + r.label + '</option>'
