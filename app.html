@@ -689,6 +689,18 @@
         <option value="klasse">Klassenansicht</option>
         <option value="lp">LP-Ansicht</option>
       </select>
+      <div style="display:flex;align-items:center;gap:var(--space-2)">
+        <label style="font-size:var(--text-xs);color:var(--color-text-muted);white-space:nowrap">Beginn</label>
+        <input type="time" id="sp-startzeit" value="08:00" step="300" class="form-input" style="width:110px" onchange="renderStundenplan()"/>
+      </div>
+      <div style="display:flex;align-items:center;gap:var(--space-2)">
+        <label style="font-size:var(--text-xs);color:var(--color-text-muted);white-space:nowrap">Lekt. (min)</label>
+        <input type="number" id="sp-lektlaenge" value="45" min="30" max="90" step="5" class="form-input" style="width:75px" onchange="renderStundenplan()"/>
+      </div>
+      <div style="display:flex;align-items:center;gap:var(--space-2)">
+        <label style="font-size:var(--text-xs);color:var(--color-text-muted);white-space:nowrap">Pause (min)</label>
+        <input type="number" id="sp-pauselaenge" value="5" min="0" max="30" step="5" class="form-input" style="width:75px" onchange="renderStundenplan()"/>
+      </div>
     </div>
   </div>
 
@@ -2873,7 +2885,7 @@ function renderStundenplan() {
   // Tabelle rendern
   const rowH = 52;
   let grid = '<table style="border-collapse:collapse;width:100%;table-layout:fixed">';
-  grid += '<colgroup><col style="width:48px">' + SP_TAGE.map(()=>'<col>').join('') + '</colgroup>';
+  grid += '<colgroup><col style="width:68px">' + SP_TAGE.map(()=>'<col>').join('') + '</colgroup>';
   grid += '<thead><tr>';
   grid += '<th style="padding:8px 4px;text-align:center;font-size:10px;font-weight:600;color:var(--color-text-muted);background:var(--color-surface-offset);border:1px solid var(--color-border)">Std.</th>';
   SP_TAGE.forEach(t => {
@@ -2883,7 +2895,15 @@ function renderStundenplan() {
 
   for (let l = 1; l <= LEKTIONEN; l++) {
     grid += '<tr>';
-    grid += '<td style="padding:4px;text-align:center;font-size:11px;font-weight:700;color:var(--color-text-muted);background:var(--color-surface-offset);border:1px solid var(--color-border);height:'+rowH+'px">'+l+'</td>';
+    const startEl = document.getElementById('sp-startzeit');
+    const lektEl  = document.getElementById('sp-lektlaenge');
+    const pauseEl = document.getElementById('sp-pauselaenge');
+    const startMins = startEl ? (function(){ const [h,m]=(startEl.value||'08:00').split(':'); return (+h)*60+(+m); })() : 480;
+    const lektMin  = lektEl  ? (+lektEl.value  || 45) : 45;
+    const pauseMin = pauseEl ? (+pauseEl.value || 5)  : 5;
+    function lektTime(n){ const tot=startMins+(n-1)*(lektMin+pauseMin); const h=Math.floor(tot/60),m=tot%60; return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+    function lektTimeEnd(n){ const tot=startMins+(n-1)*(lektMin+pauseMin)+lektMin; const h=Math.floor(tot/60),m=tot%60; return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+    grid += '<td style="padding:4px 6px;text-align:center;background:var(--color-surface-offset);border:1px solid var(--color-border);height:'+rowH+'px;vertical-align:middle">'      +'<div style="font-size:11px;font-weight:700;color:var(--color-text-muted);line-height:1.1">'+l+'</div>'      +'<div style="font-size:9px;color:var(--color-text-faint);line-height:1.2;margin-top:1px">'+lektTime(l)+'</div>'      +'<div style="font-size:9px;color:var(--color-text-faint);line-height:1.2">'+lektTimeEnd(l)+'</div>'      +'</td>';
     for (let t = 0; t < TAGE; t++) {
       const z = zellen[t][l];
       if (z && z.skip) continue;
