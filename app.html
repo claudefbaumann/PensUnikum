@@ -985,7 +985,7 @@ async function showVbDetail(id) {
           + '<td>' + modBadge + '</td>'
           + '<td>' + statusBadge + '</td>'
           + '<td style="display:flex;gap:4px">'
-          + '<button class="btn-sm btn-outline-sm" onclick="openLpBearbeiten(\'' + p.id + '\')">✏️</button>'
+          + '<button class="btn-sm btn-outline-sm" onclick="openLpBearbeiten(\'' + p.id + '\',\'' + (editTargetId||'') + '\')">✏️</button>'
           + '<button class="btn-sm btn-outline-sm" onclick="openLpWuenscheFor(\'' + p.id + '\',\'' + encodeURIComponent(name) + '\')" title="Wünsche & Einschränkungen">🎯</button>'
           + '</td></tr>';
       }).join('')
@@ -1605,14 +1605,12 @@ async function savePerson(){
 
 // ══ LP BEARBEITEN & WÜNSCHE ══
 
-async function openLpBearbeiten(lpId) {
+async function openLpBearbeiten(lpId, verbandId) {
   const { data: lp } = await db.from('benutzer').select('*').eq('id', lpId).maybeSingle();
   if (!lp) { alert('Lehrperson nicht gefunden'); return; }
-  // Sicherstellen dass Verband-ID verfügbar ist
-  if (!editTargetId && window._active_verband_id) {
-    editTargetId = window._active_verband_id;
-  }
-  if (editTargetId) window._last_verband_id = editTargetId;
+  // Verband-ID bestimmen: Parameter > editTargetId > _active_verband_id > lp.verband_id
+  const vid = verbandId || editTargetId || window._active_verband_id || window._last_verband_id || lp.verband_id;
+  if (vid) { editTargetId = vid; window._active_verband_id = vid; window._last_verband_id = vid; }
   document.getElementById('lp-edit-id').value = lp.id;
   document.getElementById('lp-edit-vorname').value = lp.vorname || '';
   document.getElementById('lp-edit-nachname').value = lp.nachname || '';
