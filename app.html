@@ -3105,18 +3105,20 @@ function renderStundenplan() {
   // Legende
   const legende = document.getElementById('sp-legende');
   const spAnsicht = document.getElementById('sp-ansicht')?.value || 'klasse';
-  // Bei LP-Ansicht: Name der gewählten LP als Titel vor der Legende
-  if (spAnsicht === 'lp') {
-    const lpSel = document.getElementById('sp-lp-select');
-    const lpName = lpSel?.options[lpSel.selectedIndex]?.text || '';
-    const lpTitle = lpName && lpName !== '— Lehrperson wählen —'
-      ? '<div style="width:100%;font-size:var(--text-sm);font-weight:700;color:var(--color-text);margin-bottom:var(--space-1)">👤 ' + lpName + '</div>'
-      : '';
-    legende.innerHTML = lpTitle;
-    legende.innerHTML += _sp_faecher.map(f => {
+  const lpSel = document.getElementById('sp-lp-select');
+  const lpName = spAnsicht === 'lp' ? (lpSel?.options[lpSel.selectedIndex]?.text || '') : '';
+  const lpTitle = (lpName && lpName !== '— Lehrperson wählen —')
+    ? '<div style="width:100%;font-size:var(--text-sm);font-weight:700;color:var(--color-text);margin-bottom:var(--space-1)">👤 ' + lpName + '</div>'
+    : '';
+  legende.innerHTML = lpTitle + _sp_faecher.map(f => {
     const lp = f.benutzer ? f.benutzer.vorname+' '+f.benutzer.nachname : '—';
     const meta = spAnsicht === 'lp' ? (f.schulklasse_bezeichnung || '—') : lp;
-    return '<div style="display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:var(--radius-full);background:'+farbMap[f.id]+'22;border:1px solid '+farbMap[f.id]+'44;font-size:var(--text-xs)">'      + '<span style="width:10px;height:10px;border-radius:50%;background:'+farbMap[f.id]+';flex-shrink:0"></span>'      + '<strong>'+f.fach_name+'</strong>'      + '<span style="color:var(--color-text-muted);margin-left:2px">'+meta+'</span>'      + '<span style="color:var(--color-text-faint);margin-left:4px">'+f.lektionen_pro_woche+'L/W</span>'      + '</div>';
+    return '<div style="display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:var(--radius-full);background:'+farbMap[f.id]+'22;border:1px solid '+farbMap[f.id]+'44;font-size:var(--text-xs)">'
+      + '<span style="width:10px;height:10px;border-radius:50%;background:'+farbMap[f.id]+';flex-shrink:0"></span>'
+      + '<strong>'+f.fach_name+'</strong>'
+      + '<span style="color:var(--color-text-muted);margin-left:2px">'+meta+'</span>'
+      + '<span style="color:var(--color-text-faint);margin-left:4px">'+f.lektionen_pro_woche+'L/W</span>'
+      + '</div>';
   }).join('');
 
   // Max Lektionen pro Tag berechnen
