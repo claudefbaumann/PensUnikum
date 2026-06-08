@@ -710,11 +710,16 @@
     <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap">
       <select class="form-input" id="sp-ansicht" style="min-width:140px" onchange="spAnsichtChanged()">
         <option value="klasse">Klassenansicht</option>
-        <option value="lp">LP-Ansicht</option>
+        <option value="lp">Lehrperson-Ansicht</option>
       </select>
       <div id="sp-klasse-wrap" style="display:flex;align-items:center;gap:var(--space-2)">
         <select class="form-input" id="sp-klasse-select" style="min-width:180px" onchange="loadStundenplan()">
           <option value="">— Klasse wählen —</option>
+        </select>
+      </div>
+      <div id="sp-lp-wrap" style="display:none;align-items:center;gap:var(--space-2)">
+        <select class="form-input" id="sp-lp-select" style="min-width:200px" onchange="loadStundenplan()">
+          <option value="">— Lehrperson wählen —</option>
         </select>
       </div>
       <label style="display:flex;align-items:center;gap:6px;font-size:var(--text-xs);color:var(--color-text-muted);cursor:pointer;white-space:nowrap">
@@ -2969,31 +2974,19 @@ async function loadStundenplan() {
   const ansicht = document.getElementById('sp-ansicht')?.value || 'klasse';
 
   if (ansicht === 'lp') {
-    // LP-Ansicht: klassenunabhängig — alle Fächer wo ich (currentUser) zugewiesen bin
-    // currentUser ist die eingeloggte Person (window._current_benutzer_id oder ROLES-basiert)
-    const currentUserId = window._current_benutzer_id || null;
-    if (!currentUserId) {
-      // Demo-Modus: alle Fächer des Verbands laden
-      const allKlasseIds = _sp_klassen.map(k => k.id);
-      if (allKlasseIds.length) {
-        const { data: faecher } = await db.from('klassen_faecher')
-          .select('id,fach_name,lektionen_pro_woche,doppellektionen_pro_woche,benutzer_id,schulhaus_id,schulklasse_id,benutzer:benutzer_id(vorname,nachname),schulhaus:schulhaus_id(name),schulklasse:schulklasse_id(bezeichnung)')
-          .in('schulklasse_id', allKlasseIds);
-        _sp_faecher = (faecher || []).map(f => ({
-          ...f, schulklasse_bezeichnung: f.schulklasse?.bezeichnung || null
-        }));
-      } else {
-        _sp_faecher = [];
-      }
-    } else {
-      // Eingeloggt: nur eigene Fächer
-      const { data: faecher } = await db.from('klassen_faecher')
-        .select('id,fach_name,lektionen_pro_woche,doppellektionen_pro_woche,benutzer_id,schulhaus_id,schulklasse_id,benutzer:benutzer_id(vorname,nachname),schulhaus:schulhaus_id(name),schulklasse:schulklasse_id(bezeichnung)')
-        .eq('benutzer_id', currentUserId);
-      _sp_faecher = (faecher || []).map(f => ({
-        ...f, schulklasse_bezeichnung: f.schulklasse?.bezeichnung || null
-      }));
+    // Lehrperson-Ansicht: gewählte LP aus sp-lp-select
+    const lpId = document.getElementById('sp-lp-select')?.value || null;
+    if (!lpId) {
+      _sp_faecher = [];
+      renderStundenplan();
+      return;
     }
+    const { data: faecher } = await db.from('klassen_faecher')
+      .select('id,fach_name,lektionen_pro_woche,doppellektionen_pro_woche,benutzer_id,schulhaus_id,schulklasse_id,benutzer:benutzer_id(vorname,nachname),schulhaus:schulhaus_id(name),schulklasse:schulklasse_id(bezeichnung)')
+      .eq('benutzer_id', lpId);
+    _sp_faecher = (faecher || []).map(f => ({
+      ...f, schulklasse_bezeichnung: f.schulklasse?.bezeichnung || null
+    }));
     renderStundenplan();
     return;
   }
@@ -3013,18 +3006,47 @@ async function loadStundenplan() {
 function spAnsichtChanged() {
   const ansicht = document.getElementById('sp-ansicht')?.value || 'klasse';
   const klasseWrap = document.getElementById('sp-klasse-wrap');
+  const lpWrap    = document.getElementById('sp-lp-wrap');
   if (klasseWrap) klasseWrap.style.display = ansicht === 'lp' ? 'none' : 'flex';
+  if (lpWrap)    lpWrap.style.display    = ansicht === 'lp' ? 'flex' : 'none';
+
   if (ansicht === 'lp') {
-    // LP-Ansicht sofort laden (kein Klassen-Select nötig)
-    loadStundenplan();
+    // LP-Dropdown mit Lehrpersonen des Verbands befüllen (einmalig)
+    spLoadLpList();
   } else {
-    // Klassenansicht: nur wenn Klasse gewählt
     const klasseId = document.getElementById('sp-klasse-select')?.value;
     if (klasseId) loadStundenplan();
-    else {
-      _sp_faecher = [];
-      renderStundenplan();
-    }
+    else { _sp_faecher = []; renderStundenplan(); }
+  }
+}
+
+async function spLoadLpList() {
+  const vid = window._sp_current_vid || editTargetId || window._active_verband_id || window._last_verband_id;
+  const sel = document.getElementById('sp-lp-select');
+  if (!sel || !vid) return;
+  // Nur einmal laden pro Verband
+  if (sel.dataset.loadedVid === String(vid) && sel.options.length > 1) {
+    const lpId = sel.value;
+    if (lpId) loadStundenplan();
+    return;
+  }
+  sel.innerHTML = '<option value="">— Lehrperson wählen —</option>';
+  const { data: lpList } = await db.from('benutzer')
+    .select('id,vorname,nachname')
+    .eq('verband_id', vid)
+    .eq('aktiv', true)
+    .order('nachname');
+  (lpList || []).forEach(lp => {
+    const opt = document.createElement('option');
+    opt.value = lp.id;
+    opt.textContent = lp.nachname + ' ' + lp.vorname;
+    sel.appendChild(opt);
+  });
+  sel.dataset.loadedVid = String(vid);
+  // Wenn nur eine LP → automatisch auswählen
+  if (sel.options.length === 2) {
+    sel.selectedIndex = 1;
+    loadStundenplan();
   }
 }
 
@@ -3064,8 +3086,11 @@ function renderStundenplan() {
   console.log('[SP] faecher sample:', _sp_faecher[0]);
   if (!_sp_faecher.length) {
     const ansicht = document.getElementById('sp-ansicht')?.value || 'klasse';
+    const lpId = document.getElementById('sp-lp-select')?.value;
     const emptyMsg = ansicht === 'lp'
-      ? 'Keine Fächer zugewiesen. Bitte unter «Klassen» Fächer dieser Lehrperson zuordnen.'
+      ? (lpId
+          ? 'Für diese Lehrperson sind noch keine Fächer erfasst.'
+          : 'Bitte eine Lehrperson auswählen.')
       : 'Für diese Klasse sind noch keine Fächer erfasst.';
     document.getElementById('sp-grid-wrap').innerHTML =
       '<p style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">' + emptyMsg + '</p>';
@@ -3080,7 +3105,15 @@ function renderStundenplan() {
   // Legende
   const legende = document.getElementById('sp-legende');
   const spAnsicht = document.getElementById('sp-ansicht')?.value || 'klasse';
-  legende.innerHTML = _sp_faecher.map(f => {
+  // Bei LP-Ansicht: Name der gewählten LP als Titel vor der Legende
+  if (spAnsicht === 'lp') {
+    const lpSel = document.getElementById('sp-lp-select');
+    const lpName = lpSel?.options[lpSel.selectedIndex]?.text || '';
+    const lpTitle = lpName && lpName !== '— Lehrperson wählen —'
+      ? '<div style="width:100%;font-size:var(--text-sm);font-weight:700;color:var(--color-text);margin-bottom:var(--space-1)">👤 ' + lpName + '</div>'
+      : '';
+    legende.innerHTML = lpTitle;
+    legende.innerHTML += _sp_faecher.map(f => {
     const lp = f.benutzer ? f.benutzer.vorname+' '+f.benutzer.nachname : '—';
     const meta = spAnsicht === 'lp' ? (f.schulklasse_bezeichnung || '—') : lp;
     return '<div style="display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:var(--radius-full);background:'+farbMap[f.id]+'22;border:1px solid '+farbMap[f.id]+'44;font-size:var(--text-xs)">'      + '<span style="width:10px;height:10px;border-radius:50%;background:'+farbMap[f.id]+';flex-shrink:0"></span>'      + '<strong>'+f.fach_name+'</strong>'      + '<span style="color:var(--color-text-muted);margin-left:2px">'+meta+'</span>'      + '<span style="color:var(--color-text-faint);margin-left:4px">'+f.lektionen_pro_woche+'L/W</span>'      + '</div>';
