@@ -371,8 +371,15 @@
                   <option value="inaktiv">Inaktiv</option>
                 </select>
               </div>
-              <div class="form-group"><label class="form-label">Lektionslänge (Minuten)</label>
-                <input class="form-input" type="number" id="vb-lektionslaenge" value="45" min="30" max="90" step="5" style="max-width:120px"/>
+              <div class="form-group" style="display:flex;gap:var(--space-6);flex-wrap:wrap">
+                <div>
+                  <label class="form-label">Schultag Beginn</label>
+                  <input class="form-input" type="time" id="vb-schultag-beginn" value="08:00" step="300" style="max-width:130px"/>
+                </div>
+                <div>
+                  <label class="form-label">Lektionslänge (Minuten)</label>
+                  <input class="form-input" type="number" id="vb-lektionslaenge" value="45" min="30" max="90" step="5" style="max-width:120px"/>
+                </div>
               </div>
               <hr style="border:none;border-top:1px solid var(--color-divider);"/>
               <div style="font-size:var(--text-sm);font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--space-3)">Pausen</div>
@@ -701,26 +708,28 @@
       </button>
     </div>
     <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap">
-      <select class="form-input" id="sp-klasse-select" style="min-width:180px" onchange="loadStundenplan()">
-        <option value="">— Klasse wählen —</option>
-      </select>
-      <select class="form-input" id="sp-ansicht" style="min-width:140px" onchange="renderStundenplan()">
+      <select class="form-input" id="sp-ansicht" style="min-width:140px" onchange="spAnsichtChanged()">
         <option value="klasse">Klassenansicht</option>
         <option value="lp">LP-Ansicht</option>
       </select>
+      <div id="sp-klasse-wrap" style="display:flex;align-items:center;gap:var(--space-2)">
+        <select class="form-input" id="sp-klasse-select" style="min-width:180px" onchange="loadStundenplan()">
+          <option value="">— Klasse wählen —</option>
+        </select>
+      </div>
       <label style="display:flex;align-items:center;gap:6px;font-size:var(--text-xs);color:var(--color-text-muted);cursor:pointer;white-space:nowrap">
         <input type="checkbox" id="sp-show-raum" onchange="renderStundenplan()" style="cursor:pointer"/>
         Schulhaus/Raum
       </label>
-      <div style="display:flex;align-items:center;gap:var(--space-2)">
-        <label style="font-size:var(--text-xs);color:var(--color-text-muted);white-space:nowrap">Beginn</label>
-        <input type="time" id="sp-startzeit" value="08:00" step="300" class="form-input" style="width:110px" onchange="renderStundenplan()"/>
+      <div style="display:flex;align-items:center;gap:var(--space-2);background:var(--color-surface-offset);padding:4px 10px;border-radius:var(--radius-md);border:1px solid var(--color-border)">
+        <span style="font-size:var(--text-xs);color:var(--color-text-muted);white-space:nowrap">Beginn</span>
+        <span id="sp-startzeit-label" style="font-size:var(--text-xs);font-weight:600;color:var(--color-text)">08:00</span>
+        <span style="font-size:var(--text-xs);color:var(--color-divider)">|</span>
+        <span id="sp-lektlaenge-label" style="font-size:var(--text-xs);font-weight:600;color:var(--color-text)">45</span>
+        <span style="font-size:var(--text-xs);color:var(--color-text-muted)">Min.</span>
       </div>
-      <div style="display:flex;align-items:center;gap:var(--space-2)">
-        <label style="font-size:var(--text-xs);color:var(--color-text-muted);white-space:nowrap">Lekt. (min)</label>
-        <input type="number" id="sp-lektlaenge" value="45" min="30" max="90" step="5" class="form-input" style="width:75px" onchange="renderStundenplan()"/>
-      </div>
-
+      <input type="hidden" id="sp-startzeit" value="08:00"/>
+      <input type="hidden" id="sp-lektlaenge" value="45"/>
     </div>
   </div>
 
@@ -855,7 +864,20 @@ async function loadVerbaende() {
     einladungStatus: (v.einladungen && v.einladungen[0]) ? v.einladungen[0].status : 'ausstehend',
     einladungDatum: (v.einladungen && v.einladungen[0]) ? v.einladungen[0].gesendet_am : null,
     lektionslaenge_min: v.lektionslaenge_min || 45,
-    pausen: [],
+    schultag_beginn: (() => {
+      try {
+        if (!v.pausen_json) return '08:00';
+        const parsed = JSON.parse(v.pausen_json);
+        return parsed.beginn || '08:00';
+      } catch(e) { return '08:00'; }
+    })(),
+    pausen: (() => {
+      try {
+        if (!v.pausen_json) return [];
+        const parsed = JSON.parse(v.pausen_json);
+        return Array.isArray(parsed) ? parsed : (parsed.pausen || []);
+      } catch(e) { return []; }
+    })(),
   }));
 }
 
@@ -865,7 +887,7 @@ async function saveVerbandDB(data, editId) {
     sl_name: data.slName,
     sl_email: data.slEmail, status: data.status,
     lektionslaenge_min: data.lektionslaenge || 45,
-    pausen_json: JSON.stringify(data.pausen || []),
+    pausen_json: JSON.stringify({ beginn: data.schultag_beginn || '08:00', pausen: data.pausen || [] }),
     aktualisiert_am: new Date().toISOString()
   };
   if (editId) {
@@ -1015,6 +1037,7 @@ async function showVbDetail(id) {
   document.getElementById('vb-detail-grid').innerHTML =
     '<div class="detail-item"><div class="detail-label">Schulhäuser</div><div class="detail-value">' + v.schulhaeuser + '</div></div>'
     + '<div class="detail-item"><div class="detail-label">Lehrpersonen</div><div class="detail-value">' + v.lehrpersonen + '</div></div>'
+    + '<div class="detail-item"><div class="detail-label">Schultag Beginn</div><div class="detail-value">' + (v.schultag_beginn || '08:00') + '</div></div>'
     + '<div class="detail-item"><div class="detail-label">Lektionslänge</div><div class="detail-value">' + (v.lektionslaenge_min || 45) + ' Min.</div></div>'
     + '<div class="detail-item"><div class="detail-label">Domain</div><div class="detail-value">' + (v.domain||'—') + '</div></div>'
     + '<div class="detail-item"><div class="detail-label">Verbandsleitung</div><div class="detail-value">' + v.slName + '</div></div>'
@@ -1079,6 +1102,8 @@ function editVerbandById(id) {
   if (lpModusEl) lpModusEl.value = v.lpModus || 'gemischt';
   const llEl = document.getElementById('vb-lektionslaenge');
   if (llEl) llEl.value = v.lektionslaenge_min || 45;
+  const sbEl = document.getElementById('vb-schultag-beginn');
+  if (sbEl) sbEl.value = v.schultag_beginn || '08:00';
   const pausenTbody = document.getElementById('vb-pausen-tbody');
   if (pausenTbody) { pausenTbody.innerHTML = ''; (v.pausen || []).forEach(p => vbAddPauseRow(p)); }
 }
@@ -1141,6 +1166,7 @@ async function saveVerband() {
     status: document.getElementById('vb-status').value,
     lpModus: document.getElementById('vb-lp-modus') ? document.getElementById('vb-lp-modus').value : 'gemischt',
     lektionslaenge: parseInt(document.getElementById('vb-lektionslaenge')?.value) || 45,
+    schultag_beginn: document.getElementById('vb-schultag-beginn')?.value || '08:00',
     pausen: (() => {
       const rows = document.querySelectorAll('#vb-pausen-tbody tr[data-pause]');
       return Array.from(rows).map(r => ({
@@ -2893,13 +2919,26 @@ async function loadStundenplan() {
           .select('pausen_json,lektionslaenge_min')
           .eq('id', vid).single();
         if (vbRow) {
+          // Lektionslänge
+          const lektMin = vbRow.lektionslaenge_min || 45;
+          const lEl = document.getElementById('sp-lektlaenge');
+          if (lEl) lEl.value = lektMin;
+          const lLabel = document.getElementById('sp-lektlaenge-label');
+          if (lLabel) lLabel.textContent = lektMin;
+          // Schultag Beginn aus pausen_json
+          let startzeit = '08:00';
           if (vbRow.pausen_json) {
-            try { _sp_pausen_map[vid] = JSON.parse(vbRow.pausen_json); } catch(e) {}
+            try {
+              const parsed = JSON.parse(vbRow.pausen_json);
+              if (parsed.beginn) startzeit = parsed.beginn;
+              // Pausen-Array normalisieren (neues Format: {beginn,pausen:[]} / altes: [...])
+              _sp_pausen_map[vid] = Array.isArray(parsed) ? parsed : (parsed.pausen || []);
+            } catch(e) {}
           }
-          if (vbRow.lektionslaenge_min) {
-            const lEl = document.getElementById('sp-lektlaenge');
-            if (lEl) lEl.value = vbRow.lektionslaenge_min;
-          }
+          const sEl = document.getElementById('sp-startzeit');
+          if (sEl) sEl.value = startzeit;
+          const sLabel = document.getElementById('sp-startzeit-label');
+          if (sLabel) sLabel.textContent = startzeit;
         }
       } catch(e) {}
 
@@ -2927,15 +2966,66 @@ async function loadStundenplan() {
     }
   }
 
+  const ansicht = document.getElementById('sp-ansicht')?.value || 'klasse';
+
+  if (ansicht === 'lp') {
+    // LP-Ansicht: klassenunabhängig — alle Fächer wo ich (currentUser) zugewiesen bin
+    // currentUser ist die eingeloggte Person (window._current_benutzer_id oder ROLES-basiert)
+    const currentUserId = window._current_benutzer_id || null;
+    if (!currentUserId) {
+      // Demo-Modus: alle Fächer des Verbands laden
+      const allKlasseIds = _sp_klassen.map(k => k.id);
+      if (allKlasseIds.length) {
+        const { data: faecher } = await db.from('klassen_faecher')
+          .select('id,fach_name,lektionen_pro_woche,doppellektionen_pro_woche,benutzer_id,schulhaus_id,schulklasse_id,benutzer:benutzer_id(vorname,nachname),schulhaus:schulhaus_id(name),schulklasse:schulklasse_id(bezeichnung)')
+          .in('schulklasse_id', allKlasseIds);
+        _sp_faecher = (faecher || []).map(f => ({
+          ...f, schulklasse_bezeichnung: f.schulklasse?.bezeichnung || null
+        }));
+      } else {
+        _sp_faecher = [];
+      }
+    } else {
+      // Eingeloggt: nur eigene Fächer
+      const { data: faecher } = await db.from('klassen_faecher')
+        .select('id,fach_name,lektionen_pro_woche,doppellektionen_pro_woche,benutzer_id,schulhaus_id,schulklasse_id,benutzer:benutzer_id(vorname,nachname),schulhaus:schulhaus_id(name),schulklasse:schulklasse_id(bezeichnung)')
+        .eq('benutzer_id', currentUserId);
+      _sp_faecher = (faecher || []).map(f => ({
+        ...f, schulklasse_bezeichnung: f.schulklasse?.bezeichnung || null
+      }));
+    }
+    renderStundenplan();
+    return;
+  }
+
+  // Klassenansicht
   if (!klasseId) return;
 
-  // Fächer der Klasse laden
+  // Fächer der gewählten Klasse laden
   const { data: faecher } = await db.from('klassen_faecher')
     .select('id,fach_name,lektionen_pro_woche,doppellektionen_pro_woche,benutzer_id,schulhaus_id,benutzer:benutzer_id(vorname,nachname),schulhaus:schulhaus_id(name)')
     .eq('schulklasse_id', klasseId);
   _sp_faecher = faecher || [];
 
   renderStundenplan();
+}
+
+function spAnsichtChanged() {
+  const ansicht = document.getElementById('sp-ansicht')?.value || 'klasse';
+  const klasseWrap = document.getElementById('sp-klasse-wrap');
+  if (klasseWrap) klasseWrap.style.display = ansicht === 'lp' ? 'none' : 'flex';
+  if (ansicht === 'lp') {
+    // LP-Ansicht sofort laden (kein Klassen-Select nötig)
+    loadStundenplan();
+  } else {
+    // Klassenansicht: nur wenn Klasse gewählt
+    const klasseId = document.getElementById('sp-klasse-select')?.value;
+    if (klasseId) loadStundenplan();
+    else {
+      _sp_faecher = [];
+      renderStundenplan();
+    }
+  }
 }
 
 function printStundenplan() {
@@ -2973,8 +3063,12 @@ function printStundenplan() {
 function renderStundenplan() {
   console.log('[SP] faecher sample:', _sp_faecher[0]);
   if (!_sp_faecher.length) {
+    const ansicht = document.getElementById('sp-ansicht')?.value || 'klasse';
+    const emptyMsg = ansicht === 'lp'
+      ? 'Keine Fächer zugewiesen. Bitte unter «Klassen» Fächer dieser Lehrperson zuordnen.'
+      : 'Für diese Klasse sind noch keine Fächer erfasst.';
     document.getElementById('sp-grid-wrap').innerHTML =
-      '<p style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">Für diese Klasse sind noch keine Fächer erfasst.</p>';
+      '<p style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">' + emptyMsg + '</p>';
     document.getElementById('sp-legende').innerHTML = '';
     return;
   }
@@ -2985,14 +3079,11 @@ function renderStundenplan() {
 
   // Legende
   const legende = document.getElementById('sp-legende');
+  const spAnsicht = document.getElementById('sp-ansicht')?.value || 'klasse';
   legende.innerHTML = _sp_faecher.map(f => {
     const lp = f.benutzer ? f.benutzer.vorname+' '+f.benutzer.nachname : '—';
-    return '<div style="display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:var(--radius-full);background:'+farbMap[f.id]+'22;border:1px solid '+farbMap[f.id]+'44;font-size:var(--text-xs)">'
-      + '<span style="width:10px;height:10px;border-radius:50%;background:'+farbMap[f.id]+';flex-shrink:0"></span>'
-      + '<strong>'+f.fach_name+'</strong>'
-      + '<span style="color:var(--color-text-muted);margin-left:2px">'+lp+'</span>'
-      + '<span style="color:var(--color-text-faint);margin-left:4px">'+f.lektionen_pro_woche+'L/W</span>'
-      + '</div>';
+    const meta = spAnsicht === 'lp' ? (f.schulklasse_bezeichnung || '—') : lp;
+    return '<div style="display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:var(--radius-full);background:'+farbMap[f.id]+'22;border:1px solid '+farbMap[f.id]+'44;font-size:var(--text-xs)">'      + '<span style="width:10px;height:10px;border-radius:50%;background:'+farbMap[f.id]+';flex-shrink:0"></span>'      + '<strong>'+f.fach_name+'</strong>'      + '<span style="color:var(--color-text-muted);margin-left:2px">'+meta+'</span>'      + '<span style="color:var(--color-text-faint);margin-left:4px">'+f.lektionen_pro_woche+'L/W</span>'      + '</div>';
   }).join('');
 
   // Max Lektionen pro Tag berechnen
