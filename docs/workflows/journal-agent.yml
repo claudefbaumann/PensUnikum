@@ -1,0 +1,66 @@
+name: Tagesjournal Agent (20:00 CEST)
+
+on:
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  journal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Commits des Tages sammeln
+        run: |
+          TODAY=$(date +%Y-%m-%d)
+          git log --since="${TODAY} 00:00:00" --until="${TODAY} 23:59:59" \
+            --pretty=format:"- %s (%an)" > /tmp/commits.txt || true
+          echo "TODAY=$TODAY" >> $GITHUB_ENV
+
+      - name: Journal via GitHub Models
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pip install openai -q
+          python3 << 'PY'
+          import openai, os
+
+          commits = open('/tmp/commits.txt').read().strip() or 'Keine Commits heute.'
+          today = os.environ['TODAY']
+          client = openai.OpenAI(
+            base_url='https://models.inference.ai.azure.com',
+            api_key=os.environ['GITHUB_TOKEN']
+          )
+          r = client.chat.completions.create(
+            model='gpt-4o-mini',
+            messages=[{'role':'user','content':
+              'Tagesabschluss PensUnikum (Deutsch, max 150 Woerter, Markdown, freundlich):\n'
+              'Commits heute:\n' + commits
+            }],
+            max_tokens=300
+          )
+          entry = '\n\n## Tagesabschluss\n' + r.choices[0].message.content + '\n'
+          path = 'journal/' + today + '.md'
+          try:
+            txt = open(path).read()
+            if 'Tagesabschluss' not in txt: open(path,'a').write(entry)
+          except FileNotFoundError:
+            open(path,'w').write('# Journal ' + today + entry)
+          print('Journal ->', path)
+          PY
+
+      - name: Journal committen
+        run: |
+          git config user.name "Journal Agent"
+          git config user.email "agent@pensunikum.ch"
+          git add journal/
+          git diff --staged --quiet || git commit -m "journal: Tagesabschluss $TODAY"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
