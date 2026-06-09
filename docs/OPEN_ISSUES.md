@@ -12,15 +12,14 @@
 - **Beschreibung:** Nach Agent-Aktivität erscheint kein Stundenplan mehr im Schulverband-Tab
 - **Betroffene Anforderung:** SP-07
 - **Wahrscheinliche Ursache:**
-  - `rendereSchulverbandStundenplan()` wird nicht mehr aufgerufen beim Tab-Wechsel, oder
-  - Die Funktion wirft einen JS-Fehler (F12 → Konsole prüfen), oder
-  - Ein Commit hat den Tab-Switch-Mechanismus verändert
+  - `rendereSchulverbandStundenplan()` wird nicht aufgerufen beim Tab-Wechsel, oder
+  - JS-Fehler in der Konsole (F12 prüfen), oder
+  - Tab-Switch-Mechanismus wurde verändert
 - **Reproduktion:** App öffnen → Tab «Schulverband» → kein Stundenplan sichtbar
 - **Fix-Anleitung:**
   1. `zeigeTab('schulverband')` prüfen — ruft sie `rendereSchulverbandStundenplan()` auf?
   2. F12 Konsole: JS-Fehler vorhanden?
   3. `git log --oneline -10` — welcher Commit hat es gebrochen?
-  4. Funktion `rendereSchulverbandStundenplan()` vorhanden und korrekt?
 
 ---
 
@@ -28,27 +27,30 @@
 
 ### TODO-01: Workflow-YAMLs in .github/workflows/ kopieren
 - **Status:** Pending (manuelle Aktion durch User)
-- **Beschreibung:** docs/workflows/*.yml müssen nach .github/workflows/ kopiert werden
+- **Beschreibung:** docs/workflows/*.yml → .github/workflows/ kopieren
 - **Grund:** GitHub API erlaubt keinen direkten Write-Zugriff auf .github/workflows/
 
 ### TODO-02: PDF-Export implementieren (SP-04)
 - **Status:** Spezifiziert, bereit zur Implementierung
-- **Issue:** #1
+- **Issue:** #3
 - **Technischer Ansatz:** Siehe REQUIREMENTS.md → SP-04
+
+### TODO-03: Daten-Export/Import (TK-06)
+- **Status:** Spezifiziert, bereit zur Implementierung
+- **Issue:** #4
 
 ---
 
 ## Erledigte Issues ✅
 
-*(leer)*
+### ✅ SCH-01: lokalOptimiere 1000 Iterationen
+- **Behoben:** 2026-06-09, Commit df0a29ef5ec6
+- **Fix:** MAX_ITER von 30 auf 1000 erhöht, zufällige Slot-Auswahl statt vollständiger Suche
 
----
+### ✅ SCH-02: Pensum-Validierung vor Scheduling
+- **Behoben:** 2026-06-09, Commit df0a29ef5ec6
+- **Fix:** `prüfePensumVorScheduling()` eingefügt — warnt wenn LP-Pensum überschritten wird
 
-## Wie Issues schliessen
-
-Wenn ein Agent einen Bug behebt:
-```markdown
-### BUG-01: Stundenplan fehlt unter Schulverband-Tab
-- **Status:** ✅ Behoben am 2026-06-XX
-- **Fix:** [kurze Beschreibung was geändert wurde]
-```
+### ✅ SCH-03: Placement-Rate Fehlermeldung
+- **Behoben:** 2026-06-09, Commit df0a29ef5ec6
+- **Fix:** Strukturierter NICHT-PLATZIERT-Report am Ende von greedyPlace()
