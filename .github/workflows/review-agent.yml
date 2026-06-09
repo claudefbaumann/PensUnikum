@@ -59,6 +59,7 @@ jobs:
           git config user.email "agent@pensunikum.ch"
           git add journal/
           git diff --staged --quiet || git commit -m "review: auto Code-Review nach Push"
+          git pull --rebase origin main
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
