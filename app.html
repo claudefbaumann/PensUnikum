@@ -3240,63 +3240,112 @@ function greedyPlace(faecher, config, wuensche, tagReihenfolge, slotReihenfolge)
     }
   }
 
+  // SCH-03: Strukturierte Placement-Rate — zusammenfassen was nicht platziert wurde
+  const platzierteZählung = {};
+  for (let t = 0; t < TAGE; t++)
+    for (let l = 1; l <= LEKT; l++) {
+      const z = grid[t][l];
+      if (z && !z.skip && z.faechId) platzierteZählung[z.faechId] = (platzierteZählung[z.faechId] || 0) + 1;
+    }
+  sorted.forEach(f => {
+    const geplant = f.lektionen_pro_woche || 0;
+    const platziert = platzierteZählung[f.id] || 0;
+    if (platziert < geplant)
+      allViolations.push(`NICHT PLATZIERT: "${f.fach_name}" — ${platziert}/${geplant} Lekt. untergebracht`);
+  });
+
   return { grid, violations: [...new Set(allViolations)] };
 }
 
 // ─── Lokale Optimierung (nur Einzellektionen tauschen) ───────────────────────
 
 function lokalOptimiere(grid, faecher, wuensche, config) {
+  // SCH-01: 1000 Iterationen mit zufälliger Slot-Auswahl (statt vollständiger Suche)
   const TAGE = config.tage || 5;
   const LEKT = config.lektionen || 8;
-  let improved = true;
+  const MAX_ITER = 1000;
+
+  // Alle platzierten Einzellektions-Slots sammeln
+  function einzelSlots() {
+    const slots = [];
+    for (let t = 0; t < TAGE; t++)
+      for (let l = 1; l <= LEKT; l++)
+        if (grid[t][l] && !grid[t][l].doppel && !grid[t][l].skip) slots.push([t, l]);
+    return slots;
+  }
+
+  // Alle Slots inkl. leere sammeln
+  function alleSlots() {
+    const slots = [];
+    for (let t = 0; t < TAGE; t++)
+      for (let l = 1; l <= LEKT; l++)
+        if (!slotInPause(t, l, config)) slots.push([t, l]);
+    return slots;
+  }
+
   let iter = 0;
+  let noImprove = 0;
 
-  while (improved && iter < 30) {
-    improved = false;
+  while (iter < MAX_ITER && noImprove < 200) {
     iter++;
+    const besetzt = einzelSlots();
+    if (besetzt.length < 2) break;
 
-    for (let t1 = 0; t1 < TAGE; t1++) {
-      for (let l1 = 1; l1 <= LEKT; l1++) {
-        const z1 = grid[t1][l1];
-        // Nur Einzellektionen tauschen (keine doppel/skip)
-        if (!z1 || z1.doppel || z1.skip) continue;
+    // Zufällige Auswahl zweier Slots
+    const i1 = Math.floor(Math.random() * besetzt.length);
+    let i2 = Math.floor(Math.random() * besetzt.length);
+    if (i2 === i1) i2 = (i1 + 1) % besetzt.length;
+    const [t1, l1] = besetzt[i1];
+    const [t2, l2] = besetzt[i2];
 
-        for (let t2 = 0; t2 < TAGE; t2++) {
-          for (let l2 = l1 + 1; l2 <= LEKT; l2++) {
-            const z2 = grid[t2][l2];
-            // Nur leere Slots oder Einzellektionen
-            if (z2 && (z2.doppel || z2.skip)) continue;
+    const z1 = grid[t1][l1];
+    const z2 = grid[t2][l2];
+    if (z2 && (z2.doppel || z2.skip)) { noImprove++; continue; }
 
-            const scoreBefore = scoreGrid(grid, faecher, wuensche, config);
+    const scoreBefore = scoreGrid(grid, faecher, wuensche, config);
 
-            // Tausch durchführen
-            grid[t1][l1] = z2 ? { ...z2 } : null;
-            grid[t2][l2] = { ...z1 };
+    // Tausch
+    grid[t1][l1] = z2 ? { ...z2 } : null;
+    grid[t2][l2] = { ...z1 };
 
-            // Hard-Constraint-Check nach Tausch
-            const errors = validateGrid(grid, config);
-            if (errors.length === 0) {
-              const scoreAfter = scoreGrid(grid, faecher, wuensche, config);
-              if (scoreAfter > scoreBefore) {
-                improved = true;
-                break;
-              }
-            }
-
-            // Rückgängig
-            grid[t1][l1] = { ...z1 };
-            grid[t2][l2] = z2 ? { ...z2 } : null;
-          }
-          if (improved) break;
-        }
+    const errors = validateGrid(grid, config);
+    if (errors.length === 0) {
+      const scoreAfter = scoreGrid(grid, faecher, wuensche, config);
+      if (scoreAfter > scoreBefore) {
+        noImprove = 0; // Reset — Verbesserung gefunden
+        continue;
       }
     }
+
+    // Rückgängig
+    grid[t1][l1] = { ...z1 };
+    grid[t2][l2] = z2 ? { ...z2 } : null;
+    noImprove++;
   }
 
   return { grid, iterationen: iter };
 }
 
 // ─── Haupt-Scheduler ─────────────────────────────────────────────────────────
+
+// SCH-02: Pensum-Validierung vor dem Scheduling
+function prüfePensumVorScheduling(faecher, config) {
+  const lpLektionen = {};
+  faecher.forEach(f => {
+    if (!f.benutzer_id) return;
+    lpLektionen[f.benutzer_id] = (lpLektionen[f.benutzer_id] || 0) + (f.lektionen_pro_woche || 0);
+  });
+  const vollzeit = config.vollzeit_lektionen || 28;
+  const warnungen = [];
+  Object.entries(lpLektionen).forEach(([lpId, zugewiesen]) => {
+    const lp = (config._lehrpersonen || []).find(l => l.id === lpId);
+    if (!lp) return;
+    const maxLekt = Math.round((lp.pensum / 100) * vollzeit);
+    if (zugewiesen > maxLekt)
+      warnungen.push(`⚠️ ${lp.name || lpId}: ${zugewiesen} Lekt. zugewiesen, Pensum erlaubt max. ${maxLekt} Lekt.`);
+  });
+  return warnungen;
+}
 
 function schedule(input, anzahlVarianten = 3) {
   const { faecher, wuensche = {}, config = {} } = input;
