@@ -3386,12 +3386,12 @@ async function generateStundenplan() {
     if (shIds.length) {
       const { data: klassenData, error: klErr } = await db
         .from('schulklassen')
-        .select('id,klasse_name,schulstufe,label,schulhaus_id')
+        .select('id,bezeichnung,schulhaus_id,stufe_key,stufe')
         .in('schulhaus_id', shIds);
       if (klErr) throw klErr;
       klassenRaw = (klassenData || []).map(k => ({
         id: k.id,
-        bezeichnung: k.label || k.klasse_name || k.schulstufe || 'Klasse'
+        bezeichnung: k.bezeichnung || k.stufe_key || k.stufe || 'Klasse'
       }));
     }
     console.log('[Scheduler] Klassen', klassenRaw.length, klassenRaw);
