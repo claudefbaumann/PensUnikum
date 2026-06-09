@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  models: read
 
 jobs:
   journal:
@@ -40,7 +41,7 @@ jobs:
           r = client.chat.completions.create(
             model='gpt-4o-mini',
             messages=[{'role':'user','content':
-              'Tagesabschluss PensUnikum (Deutsch, max 150 Woerter, Markdown, freundlich):\n'
+              'Tagesabschluss PensUnikum (Deutsch, max 150 Woerter, Markdown):\n'
               'Commits heute:\n' + commits
             }],
             max_tokens=300
