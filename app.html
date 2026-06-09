@@ -3370,7 +3370,7 @@ async function generateStundenplan() {
         .select('benutzer_id,pensum_min,pensum_max,modus,max_klassen,halbtage,halbtag_zeiten')
         .eq('verband_id', verbandId),
       db.from('verbaende')
-        .select('pausen_json,schultag_beginn,lektionslaenge_min,lektionen_pro_tag')
+        .select('pausen_json,lektionslaenge_min')
         .eq('id', verbandId).maybeSingle(),
       db.from('schulhaeuser').select('id').eq('verband_id', verbandId),
     ]);
@@ -3432,7 +3432,7 @@ async function generateStundenplan() {
 
     const config = {
       tage: 5,
-      lektionen: vData?.lektionen_pro_tag || 8,
+      lektionen: 8, // Fixwert; pausen_json enthält keine lektionen_pro_tag Spalte
       schultag_beginn: beginn,
       lektionslaenge_min: vData?.lektionslaenge_min || 45,
       pausen: Array.isArray(pausen) ? pausen : [],
