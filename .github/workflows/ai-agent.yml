@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
   issues: write
+  models: read
 
 jobs:
   agent:
@@ -31,6 +32,7 @@ jobs:
 
           agents_md = open('AGENTS.md').read()[:1500]
           req_md = open('docs/REQUIREMENTS.md').read()[:1500]
+          arch_md = open('docs/ARCHITECTURE.md').read()[:1000]
           task = os.environ.get('ISSUE_TITLE','') + '\n' + os.environ.get('ISSUE_BODY','')
 
           client = openai.OpenAI(
@@ -43,12 +45,13 @@ jobs:
               'Du bist Developer-Agent fuer PensUnikum.\n'
               'AGENTS.md:\n' + agents_md + '\n\n'
               'REQUIREMENTS.md:\n' + req_md + '\n\n'
+              'ARCHITECTURE.md:\n' + arch_md + '\n\n'
               'AUFGABE: ' + task[:2000] + '\n\n'
-              'Antworte mit: 1. Was implementieren? 2. Betroffene Funktionen in app.html? '
-              '3. Implementierungsplan (3-5 Schritte) 4. Welche Tests?\n'
-              'Max 400 Woerter, Deutsch, Markdown.'
+              'Antworte: 1. Was implementieren? 2. Betroffene Funktionen app.html? '
+              '3. Implementierungsplan (4-6 Schritte) 4. Technischer Ansatz mit Begruendung 5. Tests?\n'
+              'Max 500 Woerter, Deutsch, Markdown.'
             }],
-            max_tokens=600
+            max_tokens=700
           )
           open('/tmp/analysis.md','w').write(r.choices[0].message.content)
           print(r.choices[0].message.content)
