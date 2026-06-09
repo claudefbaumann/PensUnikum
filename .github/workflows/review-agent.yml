@@ -1,0 +1,63 @@
+name: Code Review Agent
+
+on:
+  push:
+    branches: [main]
+    paths: ['app.html']
+
+permissions:
+  contents: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Diff erstellen
+        id: diff
+        run: |
+          git diff HEAD~1 HEAD -- app.html > /tmp/diff.txt
+          echo "size=$(wc -c < /tmp/diff.txt)" >> $GITHUB_OUTPUT
+
+      - name: Review via GitHub Models
+        if: steps.diff.outputs.size > 50
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pip install openai -q
+          python3 << 'PY'
+          import openai, os, datetime
+
+          diff = open('/tmp/diff.txt').read()[:5000]
+          today = datetime.date.today().isoformat()
+          client = openai.OpenAI(
+            base_url='https://models.inference.ai.azure.com',
+            api_key=os.environ['GITHUB_TOKEN']
+          )
+          r = client.chat.completions.create(
+            model='gpt-4o-mini',
+            messages=[{'role':'user','content':
+              'Code-Review PensUnikum app.html (Deutsch, max 200 Woerter, Markdown):\n' + diff
+            }],
+            max_tokens=500
+          )
+          review = r.choices[0].message.content
+          path = 'journal/' + today + '.md'
+          entry = '\n\n## Auto Code-Review\n' + review + '\n'
+          try: open(path,'a').write(entry)
+          except FileNotFoundError: open(path,'w').write('# Journal ' + today + entry)
+          print('Review ->', path)
+          PY
+
+      - name: Journal committen
+        run: |
+          git config user.name "Review Agent"
+          git config user.email "agent@pensunikum.ch"
+          git add journal/
+          git diff --staged --quiet || git commit -m "review: auto Code-Review nach Push"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
