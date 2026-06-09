@@ -3339,14 +3339,25 @@ let _scheduler_variants = [];
 let _scheduler_active_variant = 0;
 
 async function generateStundenplan() {
-  const verbandId = _current_verband_id || editTargetId || window._active_verband_id || window._last_verband_id;
-  if (!verbandId) { alert('Kein Verband gewählt'); return; }
+  const verbandId = editTargetId || window._active_verband_id || window._last_verband_id || window._sp_current_vid;
   const btn = document.getElementById('btn-generate-sp');
   const msg = document.getElementById('scheduler-msg');
+
+  console.log('[Scheduler] Start', { verbandId, editTargetId, active: window._active_verband_id, last: window._last_verband_id, sp: window._sp_current_vid });
+  showToast('⏳ Stundenplan wird berechnet…');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Berechne…'; }
-  if (msg) msg.textContent = 'Lade Klassen, Fächer und Wünsche…';
+  if (msg) msg.textContent = 'Initialisiere Stundenplan-Generator…';
+
+  if (!verbandId) {
+    if (msg) msg.textContent = '❌ Kein Verband aktiv. Bitte zuerst einen Verband öffnen.';
+    showToast('❌ Kein aktiver Verband');
+    if (btn) { btn.disabled = false; btn.innerHTML = '⚡ Stundenplan generieren'; }
+    return;
+  }
+
   try {
-    const [{ data: wuenscheRaw }, { data: vData }, { data: shRows }] = await Promise.all([
+    if (msg) msg.textContent = 'Lade LP-Wünsche, Verband und Schulhäuser…';
+    const [{ data: wuenscheRaw, error: wErr }, { data: vData, error: vErr }, { data: shRows, error: shErr }] = await Promise.all([
       db.from('lp_wuensche')
         .select('benutzer_id,pensum_min,pensum_max,modus,max_klassen,halbtage,halbtag_zeiten')
         .eq('verband_id', verbandId),
@@ -3355,8 +3366,14 @@ async function generateStundenplan() {
         .eq('id', verbandId).maybeSingle(),
       db.from('schulhaeuser').select('id').eq('verband_id', verbandId),
     ]);
+    if (wErr) throw wErr;
+    if (vErr) throw vErr;
+    if (shErr) throw shErr;
 
     const shIds = (shRows || []).map(x => x.id);
+    console.log('[Scheduler] Schulhäuser', shIds.length, shIds);
+    if (msg) msg.textContent = `Schulhäuser geladen: ${shIds.length}. Lade Klassen…`;
+
     let klassenRaw = [];
     if (shIds.length) {
       const { data: klassenData, error: klErr } = await db
@@ -3369,6 +3386,8 @@ async function generateStundenplan() {
         bezeichnung: k.label || k.klasse_name || k.schulstufe || 'Klasse'
       }));
     }
+    console.log('[Scheduler] Klassen', klassenRaw.length, klassenRaw);
+    if (msg) msg.textContent = `Klassen geladen: ${klassenRaw.length}. Lade Fächer…`;
 
     const klasseIds = klassenRaw.map(k => k.id);
     let faecherRaw = [];
@@ -3380,9 +3399,12 @@ async function generateStundenplan() {
       if (fErr) throw fErr;
       faecherRaw = faecherData || [];
     }
+    console.log('[Scheduler] Fächer', faecherRaw.length, faecherRaw);
+    if (msg) msg.textContent = `Fächer geladen: ${faecherRaw.length}. Verarbeite Wünsche…`;
 
     const wuenscheMap = {};
     (wuenscheRaw || []).forEach(w => { wuenscheMap[w.benutzer_id] = w; });
+    console.log('[Scheduler] Wünsche', Object.keys(wuenscheMap).length, wuenscheMap);
 
     let pausen = vData?.pausen_json || [];
     let beginn = vData?.schultag_beginn || '08:00';
@@ -3395,7 +3417,9 @@ async function generateStundenplan() {
         } else if (Array.isArray(parsed)) {
           pausen = parsed;
         }
-      } catch(e) {}
+      } catch(e) {
+        console.warn('[Scheduler] pausen_json parse failed', e);
+      }
     }
 
     const config = {
@@ -3405,16 +3429,22 @@ async function generateStundenplan() {
       lektionslaenge_min: vData?.lektionslaenge_min || 45,
       pausen: Array.isArray(pausen) ? pausen : [],
     };
+    console.log('[Scheduler] config', config);
+    if (msg) msg.textContent = 'Berechne Varianten…';
 
     const result = schedule({ klassen: klassenRaw, faecher: faecherRaw, wuensche: wuenscheMap, config }, 3);
+    console.log('[Scheduler] result', result);
     _scheduler_variants = result;
     _scheduler_active_variant = 0;
     renderVariantCards();
     renderSchedulerGrid(0);
+
     if (msg) msg.textContent = `${result.length} Variante(n) berechnet — ${faecherRaw.length} Fächer, ${klassenRaw.length} Klassen.`;
+    showToast(`✅ ${result.length} Stundenplan-Varianten berechnet`);
   } catch(e) {
     console.error('Scheduler:', e);
     if (msg) msg.textContent = '❌ Fehler beim Generieren: ' + (e.message || e);
+    showToast('❌ Fehler bei Stundenplan-Generierung');
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = '⚡ Stundenplan generieren'; }
   }
