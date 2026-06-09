@@ -1,47 +1,54 @@
-# OPEN_ISSUES.md — Bekannte Bugs & offene Punkte
+# OPEN_ISSUES.md — Aktive Bugs & TODOs
 
-> **Pflege:** Developer- und Reviewer-Agent nach jeder Änderung aktualisieren.
-> Geschlossene Issues werden mit Datum und Lösung markiert, nicht gelöscht.
-
----
-
-## 🔴 Kritisch (blockiert Nutzung)
-
-| ID | Gemeldet | Problem | Status |
-|---|---|---|---|
-| BUG-01 | 09.06.2026 | «Stundenplan generieren»-Button zeigt keine Reaktion wenn kein aktiver Verband im Kontext | 🔄 Fix deployed, Verifizierung ausstehend |
-
-### BUG-01 Details
-- **Symptom:** Klick auf Button tut nichts oder gibt keine sichtbare Rückmeldung
-- **Ursache vermutet:** `editTargetId` / `window._active_verband_id` nicht gesetzt wenn Stundenplan-Tab direkt geöffnet wird ohne vorher einen Verband in `showVbDetail()` zu öffnen
-- **Fix:** `generateStundenplan()` wurde umgebaut — liest Kontext-Variablen robuster, zeigt Fortschritts-Meldungen, loggt in Browser-Konsole mit `[Scheduler]`-Prefix
-- **Zum Testen:** Browser hart neu laden, Verband öffnen, Stundenplan-Tab, Button klicken → Toast + Statusmeldungen müssen erscheinen
+> Agents: Dieses File vor und nach jeder Aufgabe aktualisieren.
 
 ---
 
-## 🟡 Mittel (beeinträchtigt Nutzung)
+## Kritische Bugs 🔴
 
-| ID | Gemeldet | Problem | Status |
-|---|---|---|---|
-| BUG-02 | 09.06.2026 | Scheduler generiert leere Varianten wenn keine Fächer/Klassen vorhanden | 📋 Saubere Fehlermeldung implementieren |
-| BUG-03 | 09.06.2026 | `pausen_json` im Verband kann als String oder Object gespeichert sein — inkonsistentes Format | 🔄 Robuste Parsing-Logik deployed |
-
----
-
-## 🟢 Geschlossen
-
-| ID | Geschlossen | Problem | Lösung |
-|---|---|---|---|
-| BUG-00 | 09.06.2026 | `klassen_faecher.verband_id` nicht in DB-Schema | Lookup-Pfad via `schulhaeuser → schulklassen → klassen_faecher` korrigiert |
-
----
-
-## 📋 Feature-Wünsche (noch nicht in REQUIREMENTS.md)
-
-- Stundenplan-Export PDF / Excel (→ SP-04, SP-05 in REQUIREMENTS.md)
-- Kollisions-Warnungen im manuellen Raster (→ SP-03)
-- LP Self-Service Portal für Verfügbarkeit (→ LP-05)
+### BUG-01: Stundenplan fehlt unter Schulverband-Tab
+- **Status:** Offen
+- **Entdeckt:** 2026-06-09
+- **Beschreibung:** Nach Agent-Aktivität erscheint kein Stundenplan mehr im Schulverband-Tab
+- **Betroffene Anforderung:** SP-07
+- **Wahrscheinliche Ursache:**
+  - `rendereSchulverbandStundenplan()` wird nicht mehr aufgerufen beim Tab-Wechsel, oder
+  - Die Funktion wirft einen JS-Fehler (F12 → Konsole prüfen), oder
+  - Ein Commit hat den Tab-Switch-Mechanismus verändert
+- **Reproduktion:** App öffnen → Tab «Schulverband» → kein Stundenplan sichtbar
+- **Fix-Anleitung:**
+  1. `zeigeTab('schulverband')` prüfen — ruft sie `rendereSchulverbandStundenplan()` auf?
+  2. F12 Konsole: JS-Fehler vorhanden?
+  3. `git log --oneline -10` — welcher Commit hat es gebrochen?
+  4. Funktion `rendereSchulverbandStundenplan()` vorhanden und korrekt?
 
 ---
 
-*Zuletzt aktualisiert: 09.06.2026 — Coordinator (Perplexity)*
+## Offene TODOs 🟡
+
+### TODO-01: Workflow-YAMLs in .github/workflows/ kopieren
+- **Status:** Pending (manuelle Aktion durch User)
+- **Beschreibung:** docs/workflows/*.yml müssen nach .github/workflows/ kopiert werden
+- **Grund:** GitHub API erlaubt keinen direkten Write-Zugriff auf .github/workflows/
+
+### TODO-02: PDF-Export implementieren (SP-04)
+- **Status:** Spezifiziert, bereit zur Implementierung
+- **Issue:** #1
+- **Technischer Ansatz:** Siehe REQUIREMENTS.md → SP-04
+
+---
+
+## Erledigte Issues ✅
+
+*(leer)*
+
+---
+
+## Wie Issues schliessen
+
+Wenn ein Agent einen Bug behebt:
+```markdown
+### BUG-01: Stundenplan fehlt unter Schulverband-Tab
+- **Status:** ✅ Behoben am 2026-06-XX
+- **Fix:** [kurze Beschreibung was geändert wurde]
+```
