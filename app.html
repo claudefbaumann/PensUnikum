@@ -3339,43 +3339,82 @@ let _scheduler_variants = [];
 let _scheduler_active_variant = 0;
 
 async function generateStundenplan() {
-  const verbandId = _current_verband_id;
+  const verbandId = _current_verband_id || editTargetId || window._active_verband_id || window._last_verband_id;
   if (!verbandId) { alert('Kein Verband gewählt'); return; }
   const btn = document.getElementById('btn-generate-sp');
+  const msg = document.getElementById('scheduler-msg');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Berechne…'; }
+  if (msg) msg.textContent = 'Lade Klassen, Fächer und Wünsche…';
   try {
-    const [{ data: faecherRaw }, { data: wuenscheRaw }, { data: klassenRaw }, { data: vData }] = await Promise.all([
-      db.from('klassen_faecher')
-        .select('id,fach_name,schulklasse_id,benutzer_id,lektionen_pro_woche,doppellektionen_pro_woche')
-        .eq('verband_id', verbandId),
+    const [{ data: wuenscheRaw }, { data: vData }, { data: shRows }] = await Promise.all([
       db.from('lp_wuensche')
         .select('benutzer_id,pensum_min,pensum_max,modus,max_klassen,halbtage,halbtag_zeiten')
         .eq('verband_id', verbandId),
-      db.from('schulklassen').select('id,bezeichnung').eq('verband_id', verbandId),
       db.from('verbaende')
         .select('pausen_json,schultag_beginn,lektionslaenge_min,lektionen_pro_tag')
         .eq('id', verbandId).maybeSingle(),
+      db.from('schulhaeuser').select('id').eq('verband_id', verbandId),
     ]);
+
+    const shIds = (shRows || []).map(x => x.id);
+    let klassenRaw = [];
+    if (shIds.length) {
+      const { data: klassenData, error: klErr } = await db
+        .from('schulklassen')
+        .select('id,klasse_name,schulstufe,label,schulhaus_id')
+        .in('schulhaus_id', shIds);
+      if (klErr) throw klErr;
+      klassenRaw = (klassenData || []).map(k => ({
+        id: k.id,
+        bezeichnung: k.label || k.klasse_name || k.schulstufe || 'Klasse'
+      }));
+    }
+
+    const klasseIds = klassenRaw.map(k => k.id);
+    let faecherRaw = [];
+    if (klasseIds.length) {
+      const { data: faecherData, error: fErr } = await db
+        .from('klassen_faecher')
+        .select('id,fach_name,schulklasse_id,benutzer_id,lektionen_pro_woche,doppellektionen_pro_woche')
+        .in('schulklasse_id', klasseIds);
+      if (fErr) throw fErr;
+      faecherRaw = faecherData || [];
+    }
+
     const wuenscheMap = {};
     (wuenscheRaw || []).forEach(w => { wuenscheMap[w.benutzer_id] = w; });
+
+    let pausen = vData?.pausen_json || [];
+    let beginn = vData?.schultag_beginn || '08:00';
+    if (typeof pausen === 'string' && pausen) {
+      try {
+        const parsed = JSON.parse(pausen);
+        if (parsed && !Array.isArray(parsed)) {
+          if (parsed.beginn) beginn = parsed.beginn;
+          pausen = parsed.pausen || [];
+        } else if (Array.isArray(parsed)) {
+          pausen = parsed;
+        }
+      } catch(e) {}
+    }
+
     const config = {
       tage: 5,
       lektionen: vData?.lektionen_pro_tag || 8,
-      schultag_beginn: vData?.schultag_beginn || '08:00',
+      schultag_beginn: beginn,
       lektionslaenge_min: vData?.lektionslaenge_min || 45,
-      pausen: vData?.pausen_json || [],
+      pausen: Array.isArray(pausen) ? pausen : [],
     };
-    const result = schedule({ klassen: klassenRaw||[], faecher: faecherRaw||[], wuensche: wuenscheMap, config }, 3);
+
+    const result = schedule({ klassen: klassenRaw, faecher: faecherRaw, wuensche: wuenscheMap, config }, 3);
     _scheduler_variants = result;
     _scheduler_active_variant = 0;
     renderVariantCards();
     renderSchedulerGrid(0);
-    const msg = document.getElementById('scheduler-msg');
-    if (msg) msg.textContent = `${result.length} Variante(n) berechnet — beste zuerst.`;
+    if (msg) msg.textContent = `${result.length} Variante(n) berechnet — ${faecherRaw.length} Fächer, ${klassenRaw.length} Klassen.`;
   } catch(e) {
     console.error('Scheduler:', e);
-    const msg = document.getElementById('scheduler-msg');
-    if (msg) msg.textContent = '❌ Fehler: ' + e.message;
+    if (msg) msg.textContent = '❌ Fehler beim Generieren: ' + (e.message || e);
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = '⚡ Stundenplan generieren'; }
   }
