@@ -348,6 +348,24 @@
         </div>
       </div>
 
+      <!-- TK-06: Export / Import -->
+      <div class="card" style="margin-top:var(--space-6)">
+        <div class="card-header">
+          <span class="card-title">Daten-Backup</span>
+        </div>
+        <div style="padding:var(--space-4);display:flex;gap:var(--space-3);flex-wrap:wrap;align-items:center">
+          <button id="btn-export" class="btn-sm btn-outline-sm" onclick="exportAlleData()" style="display:flex;align-items:center;gap:6px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Daten exportieren (JSON)
+          </button>
+          <button id="btn-import" class="btn-sm btn-outline-sm" onclick="importAlleData()" style="display:flex;align-items:center;gap:6px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Daten importieren (JSON)
+          </button>
+          <span style="font-size:var(--text-xs);color:var(--color-text-muted)">Alle Verbände, Schulhäuser, Klassen, LP und Fächer als JSON sichern/wiederherstellen</span>
+        </div>
+      </div>
+
       <!-- ── VERBÄNDE PANEL ── -->
       <div id="panel-verbände" class="panel">
 
@@ -779,6 +797,10 @@
   <div class="scheduler-bar">
     <button id="btn-generate-sp" class="btn-generate" onclick="generateStundenplan()">
       ⚡ Stundenplan generieren
+    </button>
+    <button class="btn-sm btn-outline-sm" onclick="printSchedulerVariante()" style="display:flex;align-items:center;gap:4px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Als PDF
     </button>
     <span id="scheduler-msg" class="scheduler-msg">Klick auf «generieren» erstellt bis zu 3 optimierte Varianten aus den LP-Wünschen.</span>
   </div>
@@ -3713,15 +3735,19 @@ async function spLoadLpList() {
 }
 
 function printStundenplan() {
-  const klasseEl = document.getElementById('sp-klasse-select');
-  const klasseName = klasseEl ? (klasseEl.options[klasseEl.selectedIndex]?.text || 'Klasse') : 'Stundenplan';
+  const ansicht = document.getElementById('sp-ansicht')?.value || 'klasse';
+  const selectEl = ansicht === 'lp'
+    ? document.getElementById('sp-lp-select')
+    : document.getElementById('sp-klasse-select');
+  const label     = selectEl ? (selectEl.options[selectEl.selectedIndex]?.text || 'Stundenplan') : 'Stundenplan';
   const gridHTML  = document.getElementById('sp-grid-wrap')?.innerHTML || '';
   const legendeHTML = document.getElementById('sp-legende')?.innerHTML || '';
   const startzeit = document.getElementById('sp-startzeit')?.value || '08:00';
   const lektMin   = document.getElementById('sp-lektlaenge')?.value || '45';
+  const today     = new Date().toISOString().slice(0, 10);
   const w = window.open('', '_blank');
   if (!w) { alert('Popup wurde blockiert. Bitte Popup-Blocker deaktivieren.'); return; }
-  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stundenplan ' + klasseName + '</title>'
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stundenplan_' + today + '</title>'
     + '<style>'
     + '* { box-sizing:border-box; margin:0; padding:0; }'
     + 'body { font-family:Arial,sans-serif; font-size:11px; padding:16px; color:#222; }'
@@ -3735,14 +3761,120 @@ function printStundenplan() {
     + 'td:first-child { text-align:center; background:#f5f5f5; width:68px; }'
     + '@media print { @page { size:A4 landscape; margin:10mm; } }'
     + '</style></head><body>'
-    + '<h1>Stundenplan — ' + klasseName + '</h1>'
-    + '<div class="meta">Beginn: ' + startzeit + ' | Lektionslänge: ' + lektMin + ' Min.</div>'
+    + '<h1>Stundenplan \u2014 ' + label + '</h1>'
+    + '<div class="meta">Stand: ' + today + ' | Beginn: ' + startzeit + ' | Lektion: ' + lektMin + ' Min.</div>'
     + '<div class="legende">' + legendeHTML + '</div>'
     + gridHTML
-    + '<script>window.onload=function(){window.print();}<\/script>'
+    + '<script>window.onload=function(){ document.title="Stundenplan_' + today + '"; window.print(); }<\/script>'
     + '</body></html>');
   w.document.close();
 }
+
+function printSchedulerVariante() {
+  if (!_scheduler_variants || !_scheduler_variants.length) {
+    alert('Kein Stundenplan vorhanden. Bitte zuerst generieren.'); return;
+  }
+  const v     = _scheduler_variants[_scheduler_active_variant || 0];
+  const today = new Date().toISOString().slice(0, 10);
+  const gridHTML = document.getElementById('scheduler-grid-output')?.innerHTML || '';
+  const w = window.open('', '_blank');
+  if (!w) { alert('Popup wurde blockiert.'); return; }
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stundenplan_' + today + '</title>'
+    + '<style>'
+    + '* { box-sizing:border-box; margin:0; padding:0; }'
+    + 'body { font-family:Arial,sans-serif; font-size:11px; padding:16px; color:#222; }'
+    + 'h1 { font-size:16px; margin-bottom:4px; }'
+    + '.meta { font-size:10px; color:#666; margin-bottom:10px; }'
+    + 'table { border-collapse:collapse; width:100%; }'
+    + 'th,td { border:1px solid #bbb; padding:3px 5px; vertical-align:top; }'
+    + 'th { background:#f0f0f0; font-weight:600; text-align:center; }'
+    + '@media print { @page { size:A4 landscape; margin:10mm; } }'
+    + '</style></head><body>'
+    + '<h1>Stundenplan-Variante: ' + v.name + '</h1>'
+    + '<div class="meta">Stand: ' + today + ' | Score: ' + v.score + ' Pkt. | ' + v.iterationen + ' Opt.-Iterationen</div>'
+    + gridHTML
+    + '<script>window.onload=function(){ document.title="Stundenplan_' + today + '"; window.print(); }<\/script>'
+    + '</body></html>');
+  w.document.close();
+}
+
+// ─── TK-06: Daten-Export / Import ────────────────────────────────────────────
+async function exportAlleData() {
+  const btn = document.getElementById('btn-export');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Exportiere…'; }
+  try {
+    const [
+      { data: verbaende },
+      { data: schulhaeuser },
+      { data: schulklassen },
+      { data: benutzer },
+      { data: klassen_faecher },
+      { data: lp_wuensche },
+      { data: schulstufen },
+    ] = await Promise.all([
+      db.from('verbaende').select('*'),
+      db.from('schulhaeuser').select('*'),
+      db.from('schulklassen').select('*'),
+      db.from('benutzer').select('*'),
+      db.from('klassen_faecher').select('*'),
+      db.from('lp_wuensche').select('*'),
+      db.from('schulstufen').select('*'),
+    ]);
+    const exportObj = {
+      version: '1.0', exportiert_am: new Date().toISOString(), app: 'PensUnikum',
+      daten: { verbaende, schulhaeuser, schulklassen, benutzer, klassen_faecher, lp_wuensche, schulstufen }
+    };
+    const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const today = new Date().toISOString().slice(0, 10);
+    a.href = url; a.download = 'PensUnikum_Export_' + today + '.json'; a.click();
+    URL.revokeObjectURL(url);
+    showToast('✅ Export fertig — alle Tabellen heruntergeladen');
+  } catch(e) {
+    showToast('❌ Export fehlgeschlagen: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📥 Daten exportieren (JSON)'; }
+  }
+}
+
+async function importAlleData() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json,application/json';
+  input.onchange = async (evt) => {
+    const file = evt.target.files[0];
+    if (!file) return;
+    const btn = document.getElementById('btn-import');
+    try {
+      const text = await file.text();
+      const obj  = JSON.parse(text);
+      if (!obj.version || obj.app !== 'PensUnikum')
+        throw new Error('Ungültige PensUnikum-Export-Datei');
+      const daten = obj.daten || {};
+      const tabellen = ['verbaende','schulhaeuser','schulklassen','benutzer','klassen_faecher','lp_wuensche','schulstufen'];
+      const totalRows = tabellen.reduce((s,t) => s + (daten[t]?.length||0), 0);
+      if (!confirm('Import von "' + file.name + '"?\n\n' + totalRows + ' Datensätze werden importiert (Upsert).\nFortfahren?')) return;
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ Importiere…'; }
+      let total = 0;
+      for (const tbl of tabellen) {
+        const rows = daten[tbl];
+        if (!rows || !rows.length) continue;
+        const { error } = await db.from(tbl).upsert(rows, { onConflict: 'id' });
+        if (error) throw new Error(tbl + ': ' + error.message);
+        total += rows.length;
+      }
+      showToast('✅ Import: ' + total + ' Datensätze importiert');
+      setTimeout(() => location.reload(), 1500);
+    } catch(e) {
+      showToast('❌ Import fehlgeschlagen: ' + e.message);
+      console.error('Import:', e);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '📤 Daten importieren (JSON)'; }
+    }
+  };
+  input.click();
+}
+
 
 function renderStundenplan() {
   console.log('[SP] faecher sample:', _sp_faecher[0]);
