@@ -522,6 +522,20 @@
               <tbody id="vb-detail-faecher"></tbody>
             </table>
           </div>
+          <!-- ── STUNDENPLAN VORSCHAU ── -->
+          <div class="card" id="vb-sp-preview-card" style="margin-top:var(--space-6)">
+            <div class="card-header">
+              <span class="card-title">Stundenplan</span>
+              <button class="btn-sm btn-accent-sm" onclick="showPanel('stundenplan')">Vollansicht →</button>
+            </div>
+            <div id="vb-sp-preview">
+              <div style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto var(--space-3)"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Noch kein Stundenplan generiert —
+                <button class="btn-sm btn-accent-sm" style="margin-left:var(--space-2)" onclick="showPanel('stundenplan')">Jetzt generieren</button>
+              </div>
+            </div>
+          </div>
 
         </div>
       </div>
@@ -1117,6 +1131,7 @@ async function showVbDetail(id) {
       }).join('')
     : '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--color-text-muted)">Noch keine Lehrpersonen erfasst</td></tr>';
 
+  renderVbStundenplanPreview();
 }
 
 function editVerbandById(id) {
@@ -3492,6 +3507,64 @@ function renderSchedulerGrid(vi) {
     msg.textContent = `Variante "${v.name}" — Score: ${v.score} Pkt | ${nichtPlatz ? nichtPlatz + ' nicht platziert' : '✅ Alles platziert'} | ${v.iterationen} Opt.-Iter.`;
   }
 }
+
+function renderVbStundenplanPreview() {
+  const out = document.getElementById('vb-sp-preview');
+  if (!out) return;
+  if (!_scheduler_variants || !_scheduler_variants.length) {
+    out.innerHTML = '<div style="text-align:center;padding:var(--space-8);color:var(--color-text-muted)">'
+      + '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto var(--space-3)"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'
+      + 'Noch kein Stundenplan generiert — '
+      + '<button class="btn-sm btn-accent-sm" style="margin-left:4px" onclick="showPanel(\'stundenplan\')">Jetzt generieren</button>'
+      + '</div>';
+    return;
+  }
+  const v = _scheduler_variants[_scheduler_active_variant || 0];
+  if (!v) return;
+  const TAGE_LABELS = ['Mo','Di','Mi','Do','Fr'];
+  const grid = v.grid;
+  let maxSlot = 6;
+  for (let t = 0; t < 5; t++)
+    for (const l of Object.keys(grid[t] || {}).map(Number).filter(n => !isNaN(n)))
+      if (l > maxSlot) maxSlot = l;
+
+  const lpColors = ['#e8f5e9','#e3f2fd','#fff3e0','#fce4ec','#f3e5f5','#e0f7fa'];
+  const lpColorMap = {}; let ci = 0;
+  for (let t = 0; t < 5; t++)
+    for (let l = 1; l <= maxSlot; l++)
+      for (const z of Object.values(grid[t][l] || {}))
+        if (z && z.lpId && !lpColorMap[z.lpId]) lpColorMap[z.lpId] = lpColors[ci++ % lpColors.length];
+
+  let h = '<div style="overflow-x:auto;padding:var(--space-4)">';
+  h += '<table style="border-collapse:collapse;width:100%;font-size:11px">';
+  h += '<tr><th style="padding:4px 6px;background:var(--color-surface-offset);border:1px solid var(--color-border)">Slot</th>';
+  TAGE_LABELS.forEach(t => { h += `<th style="padding:4px 6px;background:var(--color-surface-offset);border:1px solid var(--color-border)">${t}</th>`; });
+  h += '</tr>';
+  for (let l = 1; l <= maxSlot; l++) {
+    h += `<tr><td style="padding:3px 6px;background:var(--color-surface);border:1px solid var(--color-border);font-weight:600;text-align:center">${l}</td>`;
+    for (let t = 0; t < 5; t++) {
+      const eintraege = Object.values(grid[t][l] || {}).filter(z => z && !z.skip);
+      if (!eintraege.length) {
+        h += `<td style="padding:3px;border:1px solid var(--color-border);background:var(--color-surface)"></td>`;
+      } else {
+        h += `<td style="padding:2px;border:1px solid var(--color-border);vertical-align:top">`;
+        for (const z of eintraege) {
+          const bg = lpColorMap[z.lpId] || '#f9f9f9';
+          h += `<div style="background:${bg};border-radius:2px;padding:1px 3px;margin-bottom:1px;font-size:10px">`;
+          h += `<span style="font-weight:600">${z.fach_name || ''}</span>`;
+          if (z.doppel) h += ' <span style="font-size:8px;color:#888">DL</span>';
+          h += '</div>';
+        }
+        h += '</td>';
+      }
+    }
+    h += '</tr>';
+  }
+  h += '</table></div>';
+  h += `<div style="padding:var(--space-2) var(--space-4);font-size:var(--text-xs);color:var(--color-text-muted)">Variante: ${v.name} — Score: ${v.score} | <button class="btn-sm btn-outline-sm" style="font-size:10px" onclick="showPanel('stundenplan')">Vollansicht →</button></div>`;
+  out.innerHTML = h;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function loadStundenplan() {
