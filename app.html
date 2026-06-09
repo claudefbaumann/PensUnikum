@@ -2991,63 +2991,53 @@ function halbtagOf(slot, config) {
 function canPlace(grid, fach, tag, slot, isDoppel, config, wuensche, belegteKlassenProLP) {
   const violations = [];
   const LEKT = config.lektionen || 8;
+  const lpId = fach.benutzer_id || ('anon_' + fach.id);
+  const klasseId = fach.schulklasse_id;
 
-  if (slot < 1 || slot > LEKT)
-    return { ok: false, violations: ['Slot ausserhalb Raster'] };
-  if (isDoppel && slot + 1 > LEKT)
-    return { ok: false, violations: ['Doppellektion über Raster-Ende'] };
-  if (slotInPause(tag, slot, config))
-    return { ok: false, violations: ['Slot liegt in Pause'] };
-  if (isDoppel && slotInPause(tag, slot + 1, config))
-    return { ok: false, violations: ['Doppellektion-Slot2 in Pause'] };
-  if (grid[tag][slot])
-    return { ok: false, violations: [grid[tag][slot].klasseId === fach.schulklasse_id ? 'Klasse bereits belegt' : 'LP-Konflikt Slot 1'] };
-  if (isDoppel && grid[tag][slot + 1])
-    return { ok: false, violations: [grid[tag][slot+1].klasseId === fach.schulklasse_id ? 'Klasse im Folge-Slot belegt' : 'LP-Konflikt Slot 2'] };
-  // HARD: LP darf nicht zweimal im selben Slot unterrichten (gleicher Zeitslot)
-  // HARD: Klasse darf nicht zweimal im selben Slot sein
-  if (fach.benutzer_id || fach.schulklasse_id) {
-    for (let l = 1; l <= LEKT; l++) {
-      if (l === slot) continue;
-      if (isDoppel && l === slot + 1) continue;
-      const z = grid[tag][l];
-      if (!z || z.skip) continue;
-      if (fach.benutzer_id && z.lpId === fach.benutzer_id)
-        return { ok: false, violations: [`LP-Konflikt: LP bereits in Slot ${l} an Tag ${tag}`] };
-      if (fach.schulklasse_id && z.klasseId === fach.schulklasse_id)
-        return { ok: false, violations: [`Klassen-Konflikt: Klasse bereits in Slot ${l} an Tag ${tag}`] };
+  if (slot < 1 || slot > LEKT) return { ok: false, violations: ['Slot ausserhalb Raster'] };
+  if (isDoppel && slot + 1 > LEKT) return { ok: false, violations: ['Doppellektion über Raster-Ende'] };
+  if (slotInPause(tag, slot, config)) return { ok: false, violations: ['Slot liegt in Pause'] };
+  if (isDoppel && slotInPause(tag, slot + 1, config)) return { ok: false, violations: ['Doppellektion-Slot2 in Pause'] };
+
+  // HARD: LP bereits in diesem Slot?
+  if (grid[tag][slot] && grid[tag][slot][lpId]) return { ok: false, violations: ['LP-Konflikt: bereits in Slot'] };
+  if (isDoppel && grid[tag][slot+1] && grid[tag][slot+1][lpId]) return { ok: false, violations: ['LP-Konflikt: bereits in Folge-Slot'] };
+
+  // HARD: Klasse bereits in diesem Slot?
+  for (const z of Object.values(grid[tag][slot] || {})) {
+    if (z && z.klasseId === klasseId) return { ok: false, violations: ['Klassen-Konflikt in Slot'] };
+  }
+  if (isDoppel) {
+    for (const z of Object.values(grid[tag][slot+1] || {})) {
+      if (z && z.klasseId === klasseId) return { ok: false, violations: ['Klassen-Konflikt in Folge-Slot'] };
     }
   }
 
   // SOFT: max_klassen
-  const w = fach.benutzer_id ? (wuensche[fach.benutzer_id] || null) : null;
+  const w = wuensche[lpId] || null;
   if (w) {
     if (w.max_klassen) {
-      const aktuell = belegteKlassenProLP[fach.benutzer_id] || new Set();
-      if (!aktuell.has(fach.schulklasse_id) && aktuell.size >= w.max_klassen)
+      const aktuell = belegteKlassenProLP[lpId] || new Set();
+      if (!aktuell.has(klasseId) && aktuell.size >= w.max_klassen)
         violations.push(`LP max_klassen (${w.max_klassen}) überschritten`);
     }
     if (w.halbtage) {
       const tagKey = TAG_KEYS[tag];
       const ht = halbtagOf(slot, config);
-      const präferenz = w.halbtage[tagKey];
-      if (präferenz && präferenz !== 'beide' && präferenz !== 'frei' && präferenz !== ht)
-        violations.push(`LP bevorzugt ${präferenz} an ${tagKey}, Slot ist ${ht}`);
+      const pref = w.halbtage[tagKey];
+      if (pref && pref !== 'beide' && pref !== 'frei' && pref !== ht)
+        violations.push(`LP bevorzugt ${pref} an ${tagKey}`);
     }
     if (w.halbtag_zeiten) {
       const tagKey = TAG_KEYS[tag];
       const ht = halbtagOf(slot, config);
-      const key = `${tagKey}_${ht}`;
-      const fenster = w.halbtag_zeiten[key];
+      const fenster = w.halbtag_zeiten[`${tagKey}_${ht}`];
       if (fenster) {
-        const slotVon = slotTime(slot, config);
-        const slotBis = slotEndTime(slot, config);
-        if (slotVon < t2m(fenster.von) || slotBis > t2m(fenster.bis))
+        if (slotTime(slot, config) < t2m(fenster.von) || slotEndTime(slot, config) > t2m(fenster.bis))
           violations.push(`LP Zeitfenster ${fenster.von}-${fenster.bis} verletzt`);
       }
     }
   }
-
   return { ok: true, violations };
 }
 
@@ -3057,69 +3047,51 @@ function scoreGrid(grid, faecher, wuensche, config) {
   let score = 1000;
   const TAGE = config.tage || 5;
   const LEKT = config.lektionen || 8;
+  const lpTagLekt = {}, lpKlassen = {};
 
-  const lpTagLekt = {};
-  const lpKlassen = {};
-
-  for (let t = 0; t < TAGE; t++) {
-    for (let l = 1; l <= LEKT; l++) {
-      const z = grid[t][l];
-      if (!z || z.skip) continue;
-      if (z.lpId) {
-        if (!lpTagLekt[z.lpId]) lpTagLekt[z.lpId] = Array(TAGE).fill(0);
-        lpTagLekt[z.lpId][t]++;
-        if (!lpKlassen[z.lpId]) lpKlassen[z.lpId] = new Set();
-        lpKlassen[z.lpId].add(z.klasseId);
+  for (let t = 0; t < TAGE; t++)
+    for (let l = 1; l <= LEKT; l++)
+      for (const z of Object.values(grid[t][l] || {})) {
+        if (!z || z.skip) continue;
+        if (z.lpId) {
+          if (!lpTagLekt[z.lpId]) lpTagLekt[z.lpId] = Array(TAGE).fill(0);
+          lpTagLekt[z.lpId][t]++;
+          if (!lpKlassen[z.lpId]) lpKlassen[z.lpId] = new Set();
+          lpKlassen[z.lpId].add(z.klasseId);
+        }
       }
-    }
-  }
 
-  // Gleichmässige Verteilung
   for (const tagCounts of Object.values(lpTagLekt)) {
-    const nonZero = tagCounts.filter(c => c > 0);
-    if (nonZero.length < 2) score -= 50;
-    const max = Math.max(...tagCounts);
-    const min = Math.min(...nonZero);
-    score -= (max - min) * 5;
+    const nz = tagCounts.filter(c => c > 0);
+    if (nz.length < 2) score -= 50;
+    score -= (Math.max(...tagCounts) - Math.min(...nz.length ? nz : [0])) * 5;
   }
 
-  // Wunsch-Erfüllung
   for (const [lpId, w] of Object.entries(wuensche)) {
     if (!lpTagLekt[lpId]) continue;
     if (w.max_klassen && lpKlassen[lpId]) {
-      if (lpKlassen[lpId].size <= w.max_klassen) score += 30;
-      else score -= 80;
+      score += lpKlassen[lpId].size <= w.max_klassen ? 30 : -80;
     }
     if (w.halbtage) {
-      let erfuellt = 0, total = 0;
+      let ok = 0, total = 0;
       for (let t = 0; t < TAGE; t++) {
         const pref = w.halbtage[TAG_KEYS[t]];
         if (!pref || pref === 'frei') continue;
         total++;
         const slots = [];
-        for (let l = 1; l <= LEKT; l++) {
-          const z = grid[t][l];
-          if (z && !z.skip && z.lpId === lpId) slots.push(l);
-        }
-        if (slots.length === 0) { erfuellt++; continue; }
-        if (slots.every(l => pref === 'beide' || halbtagOf(l, config) === pref)) erfuellt++;
+        for (let l = 1; l <= LEKT; l++) { const z = (grid[t][l] || {})[lpId]; if (z && !z.skip) slots.push(l); }
+        if (!slots.length || slots.every(l => pref === 'beide' || halbtagOf(l, config) === pref)) ok++;
       }
-      if (total > 0) score += Math.round((erfuellt / total) * 60);
+      if (total > 0) score += Math.round((ok / total) * 60);
     }
   }
 
-  // Keine Lücken
-  for (const [lpId, tagCounts] of Object.entries(lpTagLekt)) {
+  for (const lpId of Object.keys(lpTagLekt))
     for (let t = 0; t < TAGE; t++) {
       const slots = [];
-      for (let l = 1; l <= LEKT; l++) {
-        const z = grid[t][l];
-        if (z && !z.skip && z.lpId === lpId) slots.push(l);
-      }
-      for (let i = 0; i < slots.length - 1; i++)
-        score -= (slots[i + 1] - slots[i] - 1) * 8;
+      for (let l = 1; l <= LEKT; l++) { const z = (grid[t][l] || {})[lpId]; if (z && !z.skip) slots.push(l); }
+      for (let i = 0; i < slots.length - 1; i++) score -= (slots[i+1] - slots[i] - 1) * 8;
     }
-  }
 
   return score;
 }
@@ -3130,32 +3102,22 @@ function validateGrid(grid, config) {
   const TAGE = config.tage || 5;
   const LEKT = config.lektionen || 8;
   const errors = [];
-
   for (let t = 0; t < TAGE; t++) {
-    const lpSeen = {}, klasseSeen = {};
     for (let l = 1; l <= LEKT; l++) {
-      const z = grid[t][l];
-      if (!z || z.skip) continue;
-      if (slotInPause(t, l, config))
-        errors.push(`Tag ${t} Slot ${l}: liegt in Pause`);
-      if (z.lpId) {
-        if (lpSeen[z.lpId] !== undefined)
-          errors.push(`Tag ${t}: LP ${z.lpId} doppelt in Slot ${lpSeen[z.lpId]} und ${l}`);
-        lpSeen[z.lpId] = l;
-      }
-      if (z.klasseId) {
-        if (klasseSeen[z.klasseId] !== undefined)
-          errors.push(`Tag ${t}: Klasse ${z.klasseId} doppelt in Slot ${klasseSeen[z.klasseId]} und ${l}`);
-        klasseSeen[z.klasseId] = l;
-      }
-    }
-    // Doppellektionen prüfen
-    for (let l = 1; l <= LEKT; l++) {
-      if (grid[t][l]?.doppel) {
-        if (!grid[t][l+1]?.skip)
-          errors.push(`Tag ${t} Slot ${l}: doppel ohne skip im Folge-Slot`);
-        if (grid[t][l+1]?.faechId !== grid[t][l]?.faechId)
-          errors.push(`Tag ${t} Slot ${l}: doppel/skip faechId mismatch`);
+      const slot = grid[t][l] || {};
+      if (slotInPause(t, l, config) && Object.keys(slot).length > 0)
+        errors.push(`Tag ${t} Slot ${l}: Lektion in Pause`);
+      const klassenImSlot = {};
+      for (const [lpId, z] of Object.entries(slot)) {
+        if (!z || z.skip) continue;
+        if (z.klasseId) {
+          if (klassenImSlot[z.klasseId]) errors.push(`Tag ${t} Slot ${l}: Klasse ${z.klasseId} doppelt`);
+          klassenImSlot[z.klasseId] = true;
+        }
+        if (z.doppel) {
+          const next = (grid[t][l+1] || {})[lpId];
+          if (!next || !next.skip) errors.push(`Tag ${t} Slot ${l}: doppel ohne skip (LP ${lpId})`);
+        }
       }
     }
   }
@@ -3171,87 +3133,73 @@ function greedyPlace(faecher, config, wuensche, tagReihenfolge, slotReihenfolge)
   const belegteKlassenProLP = {};
   const allViolations = [];
 
-  // Sortiere: zuerst Doppellektionen, dann nach Lekt/Woche absteigend
   const sorted = [...faecher].sort((a, b) => {
     const da = (b.doppellektionen_pro_woche || 0) - (a.doppellektionen_pro_woche || 0);
     return da !== 0 ? da : (b.lektionen_pro_woche || 0) - (a.lektionen_pro_woche || 0);
   });
 
-  const slotsVorwaerts = Array.from({ length: LEKT }, (_, i) => i + 1);
-  const slotsRueckwaerts = Array.from({ length: LEKT }, (_, i) => LEKT - i);
+  const slotsVw = Array.from({ length: LEKT }, (_, i) => i + 1);
+  const slotsRw = Array.from({ length: LEKT }, (_, i) => LEKT - i);
 
   for (const fach of sorted) {
+    const lpId = fach.benutzer_id || ('anon_' + fach.id);
     let restDoppel = fach.doppellektionen_pro_woche || 0;
     let restEinzel = (fach.lektionen_pro_woche || 0) - restDoppel * 2;
 
-    // Doppellektionen
     for (const tag of tagReihenfolge) {
       if (restDoppel <= 0) break;
-      const slots = slotReihenfolge === 'vorwaerts' ? slotsVorwaerts : slotsRueckwaerts;
+      const slots = slotReihenfolge === 'vorwaerts' ? slotsVw : slotsRw;
       for (const slot of slots) {
         if (slot + 1 > LEKT) continue;
-        if (grid[tag][slot] || grid[tag][slot + 1]) continue;
         const { ok, violations } = canPlace(grid, fach, tag, slot, true, config, wuensche, belegteKlassenProLP);
         if (ok) {
-          grid[tag][slot]     = { faechId: fach.id, lpId: fach.benutzer_id, klasseId: fach.schulklasse_id, fach_name: fach.fach_name, doppel: true };
-          grid[tag][slot + 1] = { faechId: fach.id, lpId: fach.benutzer_id, klasseId: fach.schulklasse_id, fach_name: fach.fach_name, skip: true };
+          if (!grid[tag][slot]) grid[tag][slot] = {};
+          if (!grid[tag][slot+1]) grid[tag][slot+1] = {};
+          grid[tag][slot][lpId]   = { faechId: fach.id, lpId, klasseId: fach.schulklasse_id, fach_name: fach.fach_name, doppel: true };
+          grid[tag][slot+1][lpId] = { faechId: fach.id, lpId, klasseId: fach.schulklasse_id, fach_name: fach.fach_name, skip: true };
           restDoppel--;
           allViolations.push(...violations);
-          if (fach.benutzer_id) {
-            if (!belegteKlassenProLP[fach.benutzer_id]) belegteKlassenProLP[fach.benutzer_id] = new Set();
-            belegteKlassenProLP[fach.benutzer_id].add(fach.schulklasse_id);
-          }
+          if (!belegteKlassenProLP[lpId]) belegteKlassenProLP[lpId] = new Set();
+          belegteKlassenProLP[lpId].add(fach.schulklasse_id);
           break;
         }
       }
     }
 
-    // Einzellektionen Round-Robin
     let tagIdx = 0, noProgress = 0;
     while (restEinzel > 0) {
       const tag = tagReihenfolge[tagIdx % TAGE];
-      const slots = slotReihenfolge === 'vorwaerts' ? slotsVorwaerts : slotsRueckwaerts;
+      const slots = slotReihenfolge === 'vorwaerts' ? slotsVw : slotsRw;
       let placed = false;
       for (const slot of slots) {
-        if (grid[tag][slot]) continue;
         const { ok, violations } = canPlace(grid, fach, tag, slot, false, config, wuensche, belegteKlassenProLP);
         if (ok) {
-          grid[tag][slot] = { faechId: fach.id, lpId: fach.benutzer_id, klasseId: fach.schulklasse_id, fach_name: fach.fach_name };
+          if (!grid[tag][slot]) grid[tag][slot] = {};
+          grid[tag][slot][lpId] = { faechId: fach.id, lpId, klasseId: fach.schulklasse_id, fach_name: fach.fach_name };
           restEinzel--;
           placed = true;
           allViolations.push(...violations);
-          if (fach.benutzer_id) {
-            if (!belegteKlassenProLP[fach.benutzer_id]) belegteKlassenProLP[fach.benutzer_id] = new Set();
-            belegteKlassenProLP[fach.benutzer_id].add(fach.schulklasse_id);
-          }
+          if (!belegteKlassenProLP[lpId]) belegteKlassenProLP[lpId] = new Set();
+          belegteKlassenProLP[lpId].add(fach.schulklasse_id);
           break;
         }
       }
       tagIdx++;
-      if (!placed) {
-        noProgress++;
-        if (noProgress > TAGE * 3) {
-          allViolations.push(`Kein Platz für ${fach.fach_name} (${restEinzel} Lekt. nicht platziert)`);
-          break;
-        }
-      } else {
-        noProgress = 0;
-      }
+      if (!placed) { noProgress++; if (noProgress > TAGE * 3) { allViolations.push(`Kein Platz: ${fach.fach_name} (${restEinzel} Lekt.)`); break; } }
+      else noProgress = 0;
     }
   }
 
-  // SCH-03: Strukturierte Placement-Rate — zusammenfassen was nicht platziert wurde
-  const platzierteZählung = {};
+  // SCH-03 Placement-Rate
+  const platziert = {};
   for (let t = 0; t < TAGE; t++)
-    for (let l = 1; l <= LEKT; l++) {
-      const z = grid[t][l];
-      if (z && !z.skip && z.faechId) platzierteZählung[z.faechId] = (platzierteZählung[z.faechId] || 0) + 1;
-    }
+    for (let l = 1; l <= LEKT; l++)
+      for (const z of Object.values(grid[t][l] || {}))
+        if (z && !z.skip && z.faechId) platziert[z.faechId] = (platziert[z.faechId] || 0) + 1;
   sorted.forEach(f => {
-    const geplant = f.lektionen_pro_woche || 0;
-    const platziert = platzierteZählung[f.id] || 0;
-    if (platziert < geplant)
-      allViolations.push(`NICHT PLATZIERT: "${f.fach_name}" — ${platziert}/${geplant} Lekt. untergebracht`);
+    const p = platziert[f.id] || 0;
+    if (p < (f.lektionen_pro_woche || 0))
+      allViolations.push(`NICHT PLATZIERT: "${f.fach_name}" — ${p}/${f.lektionen_pro_woche} Lekt.`);
   });
 
   return { grid, violations: [...new Set(allViolations)] };
@@ -3260,69 +3208,43 @@ function greedyPlace(faecher, config, wuensche, tagReihenfolge, slotReihenfolge)
 // ─── Lokale Optimierung (nur Einzellektionen tauschen) ───────────────────────
 
 function lokalOptimiere(grid, faecher, wuensche, config) {
-  // SCH-01: 1000 Iterationen mit zufälliger Slot-Auswahl (statt vollständiger Suche)
   const TAGE = config.tage || 5;
   const LEKT = config.lektionen || 8;
   const MAX_ITER = 1000;
 
-  // Alle platzierten Einzellektions-Slots sammeln
-  function einzelSlots() {
-    const slots = [];
+  function alleEintraege() {
+    const res = [];
     for (let t = 0; t < TAGE; t++)
       for (let l = 1; l <= LEKT; l++)
-        if (grid[t][l] && !grid[t][l].doppel && !grid[t][l].skip) slots.push([t, l]);
-    return slots;
+        for (const [lpId, z] of Object.entries(grid[t][l] || {}))
+          if (z && !z.doppel && !z.skip) res.push([t, l, lpId]);
+    return res;
   }
 
-  // Alle Slots inkl. leere sammeln
-  function alleSlots() {
-    const slots = [];
-    for (let t = 0; t < TAGE; t++)
-      for (let l = 1; l <= LEKT; l++)
-        if (!slotInPause(t, l, config)) slots.push([t, l]);
-    return slots;
-  }
-
-  let iter = 0;
-  let noImprove = 0;
-
+  let iter = 0, noImprove = 0;
   while (iter < MAX_ITER && noImprove < 200) {
     iter++;
-    const besetzt = einzelSlots();
-    if (besetzt.length < 2) break;
-
-    // Zufällige Auswahl zweier Slots
-    const i1 = Math.floor(Math.random() * besetzt.length);
-    let i2 = Math.floor(Math.random() * besetzt.length);
-    if (i2 === i1) i2 = (i1 + 1) % besetzt.length;
-    const [t1, l1] = besetzt[i1];
-    const [t2, l2] = besetzt[i2];
-
-    const z1 = grid[t1][l1];
-    const z2 = grid[t2][l2];
-    if (z2 && (z2.doppel || z2.skip)) { noImprove++; continue; }
-
-    const scoreBefore = scoreGrid(grid, faecher, wuensche, config);
-
-    // Tausch
-    grid[t1][l1] = z2 ? { ...z2 } : null;
-    grid[t2][l2] = { ...z1 };
-
-    const errors = validateGrid(grid, config);
-    if (errors.length === 0) {
-      const scoreAfter = scoreGrid(grid, faecher, wuensche, config);
-      if (scoreAfter > scoreBefore) {
-        noImprove = 0; // Reset — Verbesserung gefunden
-        continue;
-      }
+    const e = alleEintraege();
+    if (e.length < 2) break;
+    const i1 = Math.floor(Math.random() * e.length);
+    let i2 = Math.floor(Math.random() * e.length);
+    if (i2 === i1) i2 = (i1 + 1) % e.length;
+    const [t1, l1, lp1] = e[i1], [t2, l2, lp2] = e[i2];
+    const z1 = grid[t1][l1][lp1], z2 = grid[t2][l2][lp2];
+    const before = scoreGrid(grid, faecher, wuensche, config);
+    delete grid[t1][l1][lp1]; delete grid[t2][l2][lp2];
+    if (!grid[t1][l1]) grid[t1][l1] = {};
+    if (!grid[t2][l2]) grid[t2][l2] = {};
+    grid[t1][l1][lp2] = { ...z2, lpId: lp2 };
+    grid[t2][l2][lp1] = { ...z1, lpId: lp1 };
+    if (validateGrid(grid, config).length === 0 && scoreGrid(grid, faecher, wuensche, config) > before) {
+      noImprove = 0;
+    } else {
+      delete grid[t1][l1][lp2]; delete grid[t2][l2][lp1];
+      grid[t1][l1][lp1] = z1; grid[t2][l2][lp2] = z2;
+      noImprove++;
     }
-
-    // Rückgängig
-    grid[t1][l1] = { ...z1 };
-    grid[t2][l2] = z2 ? { ...z2 } : null;
-    noImprove++;
   }
-
   return { grid, iterationen: iter };
 }
 
@@ -3523,31 +3445,41 @@ function renderSchedulerGrid(vi) {
   if (!v) return;
   const out = document.getElementById('scheduler-grid-output');
   if (!out) return;
-  const TAGE = ['Mo','Di','Mi','Do','Fr'];
+  const TAGE_LABELS = ['Mo','Di','Mi','Do','Fr'];
   const grid = v.grid;
-  const maxSlot = Math.max(...[0,1,2,3,4].flatMap(t => Object.keys(grid[t]||{}).map(Number).filter(n=>!isNaN(n))), 8);
+  let maxSlot = 6;
+  for (let t = 0; t < 5; t++)
+    for (const l of Object.keys(grid[t] || {}).map(Number).filter(n => !isNaN(n)))
+      if (l > maxSlot) maxSlot = l;
+
   const lpColors = ['#e8f5e9','#e3f2fd','#fff3e0','#fce4ec','#f3e5f5','#e0f7fa','#fff8e1','#ede7f6'];
   const lpColorMap = {}; let ci = 0;
+  for (let t = 0; t < 5; t++)
+    for (let l = 1; l <= maxSlot; l++)
+      for (const z of Object.values(grid[t][l] || {}))
+        if (z && z.lpId && !lpColorMap[z.lpId]) lpColorMap[z.lpId] = lpColors[ci++ % lpColors.length];
+
   let h = '<table style="border-collapse:collapse;width:100%;font-size:12px">';
-  h += '<tr><th style="padding:5px 8px;background:#f3f0ec;border:1px solid #ddd;white-space:nowrap">Slot</th>';
-  TAGE.forEach(t => { h += `<th style="padding:5px 8px;background:#f3f0ec;border:1px solid #ddd">${t}</th>`; });
+  h += '<tr><th style="padding:5px 8px;background:var(--color-surface-offset);border:1px solid var(--color-border)">Slot</th>';
+  TAGE_LABELS.forEach(t => { h += `<th style="padding:5px 8px;background:var(--color-surface-offset);border:1px solid var(--color-border)">${t}</th>`; });
   h += '</tr>';
   for (let l = 1; l <= maxSlot; l++) {
-    h += `<tr><td style="padding:4px 8px;background:#f9f8f5;border:1px solid #ddd;font-weight:600;text-align:center;white-space:nowrap">${l}</td>`;
+    h += `<tr><td style="padding:4px 8px;background:var(--color-surface);border:1px solid var(--color-border);font-weight:600;text-align:center">${l}</td>`;
     for (let t = 0; t < 5; t++) {
-      const z = grid[t][l];
-      if (z?.skip) continue;
-      const rs = z?.doppel ? ' rowspan="2"' : '';
-      if (!z) {
-        h += `<td style="padding:4px 8px;border:1px solid #ddd;background:#fafafa"></td>`;
+      const eintraege = Object.values(grid[t][l] || {}).filter(z => z && !z.skip);
+      if (!eintraege.length) {
+        h += `<td style="padding:4px;border:1px solid var(--color-border);background:var(--color-surface)"></td>`;
       } else {
-        if (z.lpId && !lpColorMap[z.lpId]) lpColorMap[z.lpId] = lpColors[ci++ % lpColors.length];
-        const bg = z.lpId ? lpColorMap[z.lpId] : '#fff';
-        h += `<td${rs} style="padding:4px 8px;border:1px solid #ddd;background:${bg};vertical-align:top">` +
-          `<div style="font-weight:600;font-size:11px">${z.fach_name||''}</div>` +
-          (z.lpId ? `<div style="font-size:10px;color:#666">${z.lpId.slice(0,8)}</div>` : '') +
-          (z.doppel ? '<div style="font-size:9px;color:#888">⬇ DL</div>' : '') +
-          '</td>';
+        h += `<td style="padding:3px;border:1px solid var(--color-border);vertical-align:top">`;
+        for (const z of eintraege) {
+          const bg = lpColorMap[z.lpId] || '#f9f9f9';
+          h += `<div style="background:${bg};border-radius:3px;padding:2px 4px;margin-bottom:2px;font-size:11px">`;
+          h += `<div style="font-weight:600">${z.fach_name || ''}</div>`;
+          h += `<div style="font-size:9px;color:#666">${(z.lpId||'').slice(-6)}</div>`;
+          if (z.doppel) h += '<div style="font-size:9px;color:#888">⬇ DL</div>';
+          h += '</div>';
+        }
+        h += '</td>';
       }
     }
     h += '</tr>';
@@ -3555,7 +3487,10 @@ function renderSchedulerGrid(vi) {
   h += '</table>';
   out.innerHTML = h;
   const msg = document.getElementById('scheduler-msg');
-  if (msg) msg.textContent = `Variante "${v.name}" — Score: ${v.score} Pkt | ${v.violations.length ? v.violations.length + ' Hinweis(e)' : 'Keine Verletzungen'}`;
+  if (msg) {
+    const nichtPlatz = v.violations.filter(x => x.startsWith('NICHT')).length;
+    msg.textContent = `Variante "${v.name}" — Score: ${v.score} Pkt | ${nichtPlatz ? nichtPlatz + ' nicht platziert' : '✅ Alles platziert'} | ${v.iterationen} Opt.-Iter.`;
+  }
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
