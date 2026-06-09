@@ -6,12 +6,7 @@
 
 ## Kritische Bugs 🔴
 
-### BUG-01: Stundenplan fehlt unter Schulverband-Tab
-- **Status:** Offen (Rendering-Hook fehlt in showVbDetail)
-- **Entdeckt:** 2026-06-09
-- **Beschreibung:** showVbDetail() rendert keinen Stundenplan-Block
-- **Fix-Anleitung:** Container `#vb-sp-preview` + Funktion `renderVbStundenplanPreview()`
-  am Ende von showVbDetail() aufrufen
+_Keine offenen kritischen Bugs._
 
 ---
 
@@ -27,15 +22,19 @@
 
 ## Erledigte Issues ✅
 
+### ✅ BUG-01: Stundenplan-Vorschau im Schulverband-Tab
+- **Behoben:** 2026-06-09, Commit 1b3a0ab4ba1b
+- **Fix:** SP-Card + renderVbStundenplanPreview() in showVbDetail() eingefügt
+
 ### ✅ ARCH-01: Multi-LP-Grid Kernarchitektur
 - **Behoben:** 2026-06-09, Commit b269b79b1acd
-- **Fix:** grid[tag][slot][lpId] statt grid[tag][slot] — mehrere LPs gleichzeitig pro Slot
+- **Fix:** grid[tag][slot][lpId] — mehrere LPs gleichzeitig pro Slot
 
 ### ✅ SCH-01: lokalOptimiere 1000 Iterationen
 - **Behoben:** 2026-06-09, Commit b269b79b1acd
 
 ### ✅ SCH-02: Pensum-Validierung vor Scheduling
-- **Behoben:** 2026-06-09, Commit b269b79b1acd (prüfePensumVorScheduling)
+- **Behoben:** 2026-06-09, Commit b269b79b1acd
 
 ### ✅ SCH-03: Placement-Rate Fehlermeldung
-- **Behoben:** 2026-06-09, Commit b269b79b1acd (NICHT PLATZIERT in greedyPlace)
+- **Behoben:** 2026-06-09, Commit b269b79b1acd
