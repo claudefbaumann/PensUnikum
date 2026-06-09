@@ -1,0 +1,68 @@
+name: AI Agent (@agent Trigger)
+
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    if: >-
+      contains(github.event.issue.body, '@agent') ||
+      contains(github.event.comment.body, '@agent')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: AI Analyse via GitHub Models
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_TITLE: ${{ github.event.issue.title || '' }}
+          ISSUE_BODY: ${{ github.event.issue.body || github.event.comment.body || '' }}
+        run: |
+          pip install openai -q
+          python3 << 'PY'
+          import openai, os
+
+          agents_md = open('AGENTS.md').read()[:1500]
+          req_md = open('docs/REQUIREMENTS.md').read()[:1500]
+          task = os.environ.get('ISSUE_TITLE','') + '\n' + os.environ.get('ISSUE_BODY','')
+
+          client = openai.OpenAI(
+            base_url='https://models.inference.ai.azure.com',
+            api_key=os.environ['GITHUB_TOKEN']
+          )
+          r = client.chat.completions.create(
+            model='gpt-4o-mini',
+            messages=[{'role':'user','content':
+              'Du bist Developer-Agent fuer PensUnikum.\n'
+              'AGENTS.md:\n' + agents_md + '\n\n'
+              'REQUIREMENTS.md:\n' + req_md + '\n\n'
+              'AUFGABE: ' + task[:2000] + '\n\n'
+              'Antworte mit: 1. Was implementieren? 2. Betroffene Funktionen in app.html? '
+              '3. Implementierungsplan (3-5 Schritte) 4. Welche Tests?\n'
+              'Max 400 Woerter, Deutsch, Markdown.'
+            }],
+            max_tokens=600
+          )
+          open('/tmp/analysis.md','w').write(r.choices[0].message.content)
+          print(r.choices[0].message.content)
+          PY
+
+      - name: Als Kommentar posten
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const analysis = fs.readFileSync('/tmp/analysis.md', 'utf8');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '## AI Agent Analyse\n\n' + analysis + '\n\n---\n*GitHub Models (GPT-4o-mini) - kostenlos*'
+            });
