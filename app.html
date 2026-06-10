@@ -277,6 +277,69 @@
   </div>
 </div>
 
+
+<script>
+window.currentRole = window.currentRole || 'admin';
+window.setRole = function(role, el){
+  window.currentRole = role;
+  document.querySelectorAll('#view-login .role-chip').forEach(function(n){ n.classList.remove('active'); });
+  if(el) el.classList.add('active');
+};
+window.doLogin = function(){
+  var role = window.currentRole || 'admin';
+  try { if (typeof currentRole !== 'undefined') currentRole = role; } catch(e) {}
+  try {
+    var login=document.getElementById('view-login');
+    var app=document.getElementById('view-app');
+    if(login) login.classList.remove('active');
+    if(app) app.classList.add('active');
+    var roleName=document.getElementById('sidebar-role-name');
+    var userName=document.getElementById('user-name');
+    var roleLabel=document.getElementById('user-role-label');
+    var avatar=document.getElementById('user-avatar');
+    var roleMap={
+      admin:{label:'authenticus Admin',user:'Claude Baumann',initials:'CB'},
+      verband:{label:'Verbandsleitung',user:'P. Gerber',initials:'PG'},
+      schule:{label:'Schulleitung',user:'M. Huber',initials:'MH'},
+      lehrer:{label:'Lehrperson',user:'S. Ritter',initials:'SR'}
+    };
+    var r=roleMap[role]||roleMap.admin;
+    if(roleName) roleName.textContent=r.label;
+    if(userName) userName.textContent=r.user;
+    if(roleLabel) roleLabel.textContent=r.label;
+    if(avatar) avatar.textContent=r.initials;
+    if(typeof ROLES !== 'undefined' && typeof showPanel === 'function'){
+      var nav=document.getElementById('sidebar-nav');
+      if(nav && ROLES[role]){
+        nav.innerHTML='';
+        ROLES[role].nav.forEach(function(s){
+          var sec=document.createElement('div');
+          sec.className='nav-section';
+          sec.innerHTML='<div class="nav-section-label">'+s.section+'</div>';
+          s.items.forEach(function(item){
+            var btn=document.createElement('button');
+            btn.className='nav-item';
+            btn.dataset.panel=item.id;
+            btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+item.icon+'</svg>'+item.label;
+            btn.addEventListener('click', function(){ showPanel(item.id); });
+            sec.appendChild(btn);
+          });
+          nav.appendChild(sec);
+        });
+        var firstPanel=ROLES[role].nav[0].items[0].id;
+        try { if(typeof loadVerbaende==='function'){ Promise.resolve(loadVerbaende()).then(function(){ showPanel(firstPanel); }); } else { showPanel(firstPanel); } } catch(e){}
+      }
+    }
+  } catch(e) {}
+};
+document.addEventListener('click', function(e){
+  var chip=e.target.closest && e.target.closest('#view-login .role-chip[data-role]');
+  if(chip){ e.preventDefault(); window.setRole(chip.dataset.role, chip); }
+  var btn=e.target.closest && e.target.closest('#login-m365-btn,#login-google-btn,#login-prototype-btn');
+  if(btn){ e.preventDefault(); window.doLogin(); }
+});
+window.__login_bootstrap_ok = true;
+</script>
 <!-- ══ APP ══ -->
 <div id="view-app" class="view">
   <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
