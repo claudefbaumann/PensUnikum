@@ -3827,7 +3827,17 @@ function printStundenplan() {
     + '<div class="legende">' + legendeHTML + '</div>'
     + gridHTML
     + '<script>window.onload=function(){ document.title="Stundenplan_' + today + '"; window.print(); }<\/script>'
-    + '
+    + '</body></html>');
+  w.document.close();
+}
+window._realDoLogin = _realDoLogin;
+window.doLogin = doLogin;
+window.setRole = setRole;
+window.currentRole = window.currentRole || currentRole || 'admin';
+window.__login_ok = true;
+
+</script>
+
   <!-- Modal: Eigene Planungsregel — ausserhalb .panel um CSS-Konflikte zu vermeiden -->
   <div id="modal-custom-regel" style="display:none;position:fixed;inset:0;background:oklch(0 0 0/0.5);z-index:2000;align-items:center;justify-content:center;padding:var(--space-4)">
     <div style="background:var(--color-surface);border-radius:var(--radius-xl);padding:var(--space-8);max-width:540px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg)">
@@ -4528,12 +4538,6 @@ if(document.readyState==='loading'){
 }
 
 
-window._realDoLogin = _realDoLogin;
-window.doLogin = doLogin;
-window.setRole = setRole;
-window.currentRole = window.currentRole || currentRole || 'admin';
-window.__login_ok = true;
-</script>
 
 
 <div class="modal-overlay" id="modal-person">
