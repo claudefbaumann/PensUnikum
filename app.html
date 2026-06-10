@@ -804,10 +804,6 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       Regeln
     </button>
-    <button class="btn-sm btn-outline-sm" onclick="showPanel('sp-regeln')" style="display:flex;align-items:center;gap:5px;white-space:nowrap">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-      Regeln
-    </button>
     <button class="btn-sm btn-outline-sm" onclick="printSchedulerVariante()" style="display:flex;align-items:center;gap:4px">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
       Als PDF
@@ -3573,7 +3569,7 @@ function renderSchedulerGrid(vi) {
           const bg = lpColorMap[z.lpId] || '#f9f9f9';
           h += `<div style="background:${bg};border-radius:3px;padding:2px 4px;margin-bottom:2px;font-size:11px">`;
           h += `<div style="font-weight:600">${z.fach_name || ''}</div>`;
-          h += `<div style="font-size:9px;color:#666">${(z.lpId||'').slice(-6)}</div>`;
+          h += `<div style="font-size:9px;color:#888">${(window._sp_lp_names||{})[z.lpId]||''}</div>`;
           if (z.doppel) h += '<div style="font-size:9px;color:#888">⬇ DL</div>';
           h += '</div>';
         }
@@ -3744,6 +3740,10 @@ async function loadStundenplan() {
     .select('id,fach_name,lektionen_pro_woche,doppellektionen_pro_woche,benutzer_id,schulhaus_id,benutzer:benutzer_id(vorname,nachname),schulhaus:schulhaus_id(name)')
     .eq('schulklasse_id', klasseId);
   _sp_faecher = faecher || [];
+  window._sp_lp_names = {};
+  (_sp_faecher||[]).forEach(f=>{
+    if(f.benutzer_id&&f.benutzer){const n=((f.benutzer.vorname||'')+' '+(f.benutzer.nachname||'')).trim();if(n)window._sp_lp_names[f.benutzer_id]=n;}
+  });
 
   renderStundenplan();
 }
@@ -3755,8 +3755,15 @@ function spAnsichtChanged() {
   if (klasseWrap) klasseWrap.style.display = ansicht === 'lp' ? 'none' : 'flex';
   if (lpWrap)    lpWrap.style.display    = ansicht === 'lp' ? 'flex' : 'none';
 
+  // Varianten-Panel nur bei Klassenansicht anzeigen
+  const variantenEl = document.getElementById('scheduler-variants');
+  if (variantenEl) variantenEl.style.display = ansicht === 'lp' ? 'none' : '';
+
+  // Generieren-Button in LP-Ansicht ausblenden
+  const btnGen = document.getElementById('btn-generate-sp');
+  if (btnGen) btnGen.style.display = ansicht === 'lp' ? 'none' : '';
+
   if (ansicht === 'lp') {
-    // LP-Dropdown mit Lehrpersonen des Verbands befüllen (einmalig)
     spLoadLpList();
   } else {
     const klasseId = document.getElementById('sp-klasse-select')?.value;
@@ -3835,8 +3842,6 @@ window.doLogin = doLogin;
 window.setRole = setRole;
 window.currentRole = window.currentRole || currentRole || 'admin';
 window.__login_ok = true;
-
-</script>
 
   <!-- Modal: Eigene Planungsregel — ausserhalb .panel um CSS-Konflikte zu vermeiden -->
   <div id="modal-custom-regel" style="display:none;position:fixed;inset:0;background:oklch(0 0 0/0.5);z-index:2000;align-items:center;justify-content:center;padding:var(--space-4)">
@@ -4537,7 +4542,7 @@ if(document.readyState==='loading'){
   bindLoginControls();
 }
 
-
+</script>
 
 
 <div class="modal-overlay" id="modal-person">
