@@ -293,8 +293,8 @@ window.setRole = function(role, el){
 window.doLogin = function(){
   var role = window.currentRole || 'admin';
   // Echter doLogin vorhanden? (nach Laden des grossen Scripts)
-  if(typeof _realDoLogin === 'function'){
-    _realDoLogin(role);
+  if(typeof _realDoLogin === 'function' || typeof window._realDoLogin === 'function'){
+    (_realDoLogin || window._realDoLogin)(role);
     return;
   }
   // Minimalversion: View wechseln und Rolle anzeigen
@@ -314,10 +314,17 @@ window.doLogin = function(){
   el=document.getElementById('user-name'); if(el) el.textContent=rm.user;
   el=document.getElementById('user-role-label'); if(el) el.textContent=rm.label;
   el=document.getElementById('user-avatar'); if(el) el.textContent=rm.initials;
-  // Nach kurzem Delay nochmals versuchen falls grosses Script inzwischen geladen
-  setTimeout(function(){
-    if(typeof _realDoLogin === 'function') _realDoLogin(role);
-  }, 200);
+  // Wiederholt versuchen bis _realDoLogin vom grossen Script definiert wurde
+  var _retryCount = 0;
+  var _retryInterval = setInterval(function(){
+    _retryCount++;
+    if(typeof _realDoLogin === 'function' || typeof window._realDoLogin === 'function'){
+      clearInterval(_retryInterval);
+      (_realDoLogin||window._realDoLogin)(role);
+    } else if(_retryCount > 20){
+      clearInterval(_retryInterval); // nach 10s aufgeben
+    }
+  }, 500);
 };
 
 // Event-Delegation für Login-Controls (funktioniert auch ohne inline-onclick)
@@ -963,7 +970,7 @@ function setRole(role, el){
 function doLogin(){
   _realDoLogin(window.currentRole || currentRole || 'admin');
 }
-function _realDoLogin(role){
+function _realDoLogin(role){ window._realDoLogin = _realDoLogin;
   currentRole = role;
   window.currentRole = role;
   const r = ROLES[currentRole] || ROLES['admin'];
