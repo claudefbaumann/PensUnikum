@@ -293,8 +293,8 @@ window.setRole = function(role, el){
 window.doLogin = function(){
   var role = window.currentRole || 'admin';
   // Echter doLogin vorhanden? (nach Laden des grossen Scripts)
-  if(typeof _realDoLogin === 'function' || typeof window._realDoLogin === 'function'){
-    (_realDoLogin || window._realDoLogin)(role);
+  if(typeof window._realDoLogin === 'function'){
+    window._realDoLogin(role);
     return;
   }
   // Minimalversion: View wechseln und Rolle anzeigen
@@ -318,9 +318,9 @@ window.doLogin = function(){
   var _retryCount = 0;
   var _retryInterval = setInterval(function(){
     _retryCount++;
-    if(typeof _realDoLogin === 'function' || typeof window._realDoLogin === 'function'){
+    if(typeof window._realDoLogin === 'function'){
       clearInterval(_retryInterval);
-      (_realDoLogin||window._realDoLogin)(role);
+      window._realDoLogin(role);
     } else if(_retryCount > 20){
       clearInterval(_retryInterval); // nach 10s aufgeben
     }
@@ -970,7 +970,7 @@ function setRole(role, el){
 function doLogin(){
   _realDoLogin(window.currentRole || currentRole || 'admin');
 }
-function _realDoLogin(role){ window._realDoLogin = _realDoLogin;
+function _realDoLogin(role){
   currentRole = role;
   window.currentRole = role;
   const r = ROLES[currentRole] || ROLES['admin'];
@@ -4582,6 +4582,7 @@ if(document.readyState==='loading'){
 }
 
 
+window._realDoLogin = _realDoLogin;
 window.__login_ok = true;
 </script>
 
