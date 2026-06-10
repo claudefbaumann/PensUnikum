@@ -4364,37 +4364,41 @@ function renderRegelnPanel(){
 }
 
 function _rCard(r,vid){
-  const locked=!r.sperrbar;
-  const bCls=r.custom?'badge-custom':r.kat==='hard'?'badge-hard':r.kat==='soft'?'badge-soft':'badge-paed';
-  const bTxt=r.custom?'EIGENE':r.kat==='hard'?'HARD':r.kat==='soft'?'SOFT':'PÄDAG.';
-  let extra='';
+  var locked=!r.sperrbar;
+  var bCls=r.custom?'badge-custom':r.kat==='hard'?'badge-hard':r.kat==='soft'?'badge-soft':'badge-paed';
+  var bTxt=r.custom?'EIGENE':r.kat==='hard'?'HARD':r.kat==='soft'?'SOFT':'PÄDAG.';
+  var extra='';
   if(!locked&&r.kat!=='hard'&&r.aktiv){
-    const gew=r.gewicht||5;
-    const dots=Array.from({length:10},(_,i)=>`<button class="gewicht-dot${i<gew?' on':''}" onclick="setRegelGewicht('${r.code}',${i+1},'${vid}')" title="${i+1}"></button>`).join('');
-    extra+=`<div style="display:flex;align-items:center;gap:var(--space-2)"><span class="param-label-sm">Gewicht:</span><div class="gewicht-dots">${dots}</div><span style="font-size:var(--text-xs);color:var(--color-primary);font-weight:700;min-width:14px">${gew}</span></div>`;
+    var gew=r.gewicht||5;
+    var dots='';
+    for(var di=0;di<10;di++){
+      dots+='<button class="gewicht-dot'+(di<gew?' on':'')+'" onclick="setRegelGewicht(''+r.code+'','+(di+1)+'''+vid+'')" title="'+(di+1)+'"></button>';
+    }
+    extra+='<div style="display:flex;align-items:center;gap:var(--space-2)"><span class="param-label-sm">Gewicht:</span><div class="gewicht-dots">'+dots+'</div><span style="font-size:var(--text-xs);color:var(--color-primary);font-weight:700;min-width:14px">'+gew+'</span></div>';
   }
   if(r.aktiv&&r.sperrbar&&r.params){
-    for(const [k,v] of Object.entries(r.params))
-      if(typeof v==='number') extra+=`<div style="display:flex;align-items:center;gap:6px"><span class="param-label-sm">${k.replace(/_/g,' ')}:</span><input type="number" class="param-input-sm" value="${v}" min="0" max="20" onchange="setRegelParam('${r.code}','${k}',+this.value,'${vid}')"/></div>`;
+    var entries=Object.entries(r.params);
+    for(var ei=0;ei<entries.length;ei++){
+      var k=entries[ei][0],v=entries[ei][1];
+      if(typeof v==='number') extra+='<div style="display:flex;align-items:center;gap:6px"><span class="param-label-sm">'+k.replace(/_/g,' ')+':</span><input type="number" class="param-input-sm" value="'+v+'" min="0" max="20" onchange="setRegelParam(''+r.code+'',''+k+'',+this.value,''+vid+'')"/></div>';
+    }
   }
-  const cbtns=r.custom?`<div style="display:flex;gap:var(--space-2);margin-top:var(--space-2)">
-    <button class="btn-sm btn-outline-sm" style="font-size:11px;padding:2px 8px" onclick="openCustomRuleModal('${r.code}')">✏️ Bearbeiten</button>
-    <button style="font-size:11px;padding:2px 8px;color:var(--color-error);border:1px solid var(--color-error);border-radius:var(--radius-sm);background:none;cursor:pointer" onclick="deleteCustomRule('${vid}','${r.code}')">🗑 Löschen</button></div>`:'';
-  return `<div class="regel-card${!r.aktiv?' inactive':''}${locked?' locked':''}" id="rc-${r.code}">
-    <label class="toggle-switch${locked?' locked':''}">
-      <input type="checkbox" ${r.aktiv?'checked':''} ${locked?'disabled':''} onchange="toggleRegel('${r.code}','${vid}',this.checked)"/>
-      <div class="toggle-track"></div>
-    </label>
-    <div class="regel-body">
-      <div class="regel-header-row">
-        <span class="regel-code">${r.code}</span>
-        <span class="regel-name">${r.name}</span>
-        <span class="regel-badge ${bCls}">${bTxt}</span>
-        ${locked?'<span style="font-size:10px;color:var(--color-text-faint)">🔒</span>':''}
-      </div>
-      <div class="regel-desc">${r.desc||''}</div>
-      ${extra?`<div class="regel-params">${extra}</div>`:''}${cbtns}
-    </div></div>`;
+  var cbtns=r.custom?('<div style="display:flex;gap:var(--space-2);margin-top:var(--space-2)"><button class="btn-sm btn-outline-sm" style="font-size:11px;padding:2px 8px" onclick="openCustomRuleModal(''+r.code+'')">✏️ Bearbeiten</button><button style="font-size:11px;padding:2px 8px;color:var(--color-error);border:1px solid var(--color-error);border-radius:var(--radius-sm);background:none;cursor:pointer" onclick="deleteCustomRule(''+vid+'',''+r.code+'')">🗑 Löschen</button></div>'):'';
+  var lockIcon=locked?'<span style="font-size:10px;color:var(--color-text-faint)">🔒</span>':'';
+  var extraHtml=extra?('<div class="regel-params">'+extra+'</div>'):'';
+  return '<div class="regel-card'+(r.aktiv?'':' inactive')+(locked?' locked':'')+'" id="rc-'+r.code+'">'+
+    '<label class="toggle-switch'+(locked?' locked':'')+'">'+
+    '<input type="checkbox" '+(r.aktiv?'checked ':'')+( locked?'disabled ':'')+' onchange="toggleRegel(''+r.code+'',''+vid+'',this.checked)"/>'+
+    '<div class="toggle-track"></div></label>'+
+    '<div class="regel-body">'+
+    '<div class="regel-header-row">'+
+    '<span class="regel-code">'+r.code+'</span>'+
+    '<span class="regel-name">'+r.name+'</span>'+
+    '<span class="regel-badge '+bCls+'">'+bTxt+'</span>'+
+    lockIcon+'</div>'+
+    '<div class="regel-desc">'+(r.desc||'')+'</div>'+
+    extraHtml+cbtns+
+    '</div></div>';
 }
 
 function toggleRegel(code,vid,aktiv){
@@ -4440,21 +4444,27 @@ function openCustomRuleModal(editCode){
 }
 function closeCustomRuleModal(){ document.getElementById('modal-custom-regel').style.display='none'; }
 function updateParamForm(){
-  const typ=document.getElementById('regel-typ').value;
-  const kat=document.getElementById('regel-kategorie').value;
-  const gw=document.getElementById('gewicht-wrap');
+  var typ=document.getElementById('regel-typ').value;
+  var kat=document.getElementById('regel-kategorie').value;
+  var gw=document.getElementById('gewicht-wrap');
   if(gw) gw.style.display=kat==='hard'?'none':'block';
-  const forms={
-    max_pro_tag:`<label class="form-label">Max. Lektionen pro Tag</label><input type="number" id="pv1" class="form-input" min="1" max="5" value="1" style="max-width:120px"/>`,
-    min_abstand:`<label class="form-label">Mindestabstand (Slots)</label><input type="number" id="pv1" class="form-input" min="1" max="8" value="1" style="max-width:120px"/>`,
-    nur_vm_nm:`<label class="form-label">Halbtag</label><select id="pv1" class="form-input" style="max-width:180px"><option value="vm">Nur Vormittag</option><option value="nm">Nur Nachmittag</option></select>`,
-    nicht_nach_fach:`<label class="form-label">Nicht nach Fach</label><input type="text" id="pv1" class="form-input" placeholder="z.B. Sport" style="max-width:220px"/>`,
-    fruehestens_slot:`<label class="form-label">Frühestens Slot</label><input type="number" id="pv1" class="form-input" min="1" max="12" value="3" style="max-width:120px"/>`,
-    spaetestens_slot:`<label class="form-label">Spätestens Slot</label><input type="number" id="pv1" class="form-input" min="1" max="12" value="6" style="max-width:120px"/>`,
-    nur_tage:`<label class="form-label">Erlaubte Tage</label><div style="display:flex;gap:var(--space-2);flex-wrap:wrap;margin-top:var(--space-2)">${['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'].map(t=>`<label style="display:flex;align-items:center;gap:4px;font-size:var(--text-sm);cursor:pointer"><input type="checkbox" class="pv-tag" value="${t}" checked/>${t}</label>`).join('')}</div>`,
-    max_doppel:`<label class="form-label">Max. Doppellektionen/Woche</label><input type="number" id="pv1" class="form-input" min="0" max="5" value="2" style="max-width:120px"/>`,
+  var tage=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
+  var tageHtml='<label class="form-label">Erlaubte Tage</label><div style="display:flex;gap:var(--space-2);flex-wrap:wrap;margin-top:var(--space-2)">';
+  for(var ti=0;ti<tage.length;ti++){
+    tageHtml+='<label style="display:flex;align-items:center;gap:4px;font-size:var(--text-sm);cursor:pointer"><input type="checkbox" class="pv-tag" value="'+tage[ti]+'" checked/>'+tage[ti]+'</label>';
+  }
+  tageHtml+='</div>';
+  var forms={
+    max_pro_tag:'<label class="form-label">Max. Lektionen pro Tag</label><input type="number" id="pv1" class="form-input" min="1" max="5" value="1" style="max-width:120px"/>',
+    min_abstand:'<label class="form-label">Mindestabstand (Slots)</label><input type="number" id="pv1" class="form-input" min="1" max="8" value="1" style="max-width:120px"/>',
+    nur_vm_nm:'<label class="form-label">Halbtag</label><select id="pv1" class="form-input" style="max-width:180px"><option value="vm">Nur Vormittag</option><option value="nm">Nur Nachmittag</option></select>',
+    nicht_nach_fach:'<label class="form-label">Nicht nach Fach</label><input type="text" id="pv1" class="form-input" placeholder="z.B. Sport" style="max-width:220px"/>',
+    fruehestens_slot:'<label class="form-label">Fruehestens Slot</label><input type="number" id="pv1" class="form-input" min="1" max="12" value="3" style="max-width:120px"/>',
+    spaetestens_slot:'<label class="form-label">Spaetestens Slot</label><input type="number" id="pv1" class="form-input" min="1" max="12" value="6" style="max-width:120px"/>',
+    nur_tage:tageHtml,
+    max_doppel:'<label class="form-label">Max. Doppellektionen/Woche</label><input type="number" id="pv1" class="form-input" min="0" max="5" value="2" style="max-width:120px"/>',
   };
-  const pw=document.getElementById('param-form-wrap');
+  var pw=document.getElementById('param-form-wrap');
   if(pw) pw.innerHTML=forms[typ]||'';
 }
 function saveCustomRule(){
