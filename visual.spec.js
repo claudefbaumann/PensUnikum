@@ -21,8 +21,8 @@ test('Screen 1 — Login-Seite & Script-Struktur', async () => {
   // Login-View sichtbar
   await expect(page.locator('#view-login')).toBeVisible({ timeout: 10000 });
 
-  // E-Mail-Input vorhanden (class="form-input", kein id)
-  await expect(page.locator('.form-input[type="email"]')).toBeVisible();
+  // E-Mail-Input vorhanden — eindeutig innerhalb #view-login
+  await expect(page.locator('#view-login .form-input[type="email"]')).toBeVisible();
 
   // Anmelden-Button vorhanden
   await expect(page.locator('#login-prototype-btn')).toBeVisible();
@@ -57,8 +57,8 @@ test('Screen 2 — Toolbar (1× Regeln-Button)', async () => {
   page.on('pageerror', e => jsErrors.push(e.message));
 
   await page.goto(URL, { waitUntil: 'networkidle', timeout: 30000 });
-  await page.locator('.form-input[type="email"]').fill(EMAIL);
-  await page.locator('.form-input[type="password"]').fill(PW);
+  await page.locator('#view-login .form-input[type="email"]').fill(EMAIL);
+  await page.locator('#view-login .form-input[type="password"]').fill(PW);
   await page.locator('#login-prototype-btn').click();
   await page.waitForTimeout(3500);
   await page.evaluate(() => showPanel('stundenplan')).catch(() => {});
@@ -78,8 +78,8 @@ test('Screen 3 — Scheduler-Grid (keine UUID-Kürzel)', async () => {
   const page    = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
   await page.goto(URL, { waitUntil: 'networkidle', timeout: 30000 });
-  await page.locator('.form-input[type="email"]').fill(EMAIL);
-  await page.locator('.form-input[type="password"]').fill(PW);
+  await page.locator('#view-login .form-input[type="email"]').fill(EMAIL);
+  await page.locator('#view-login .form-input[type="password"]').fill(PW);
   await page.locator('#login-prototype-btn').click();
   await page.waitForTimeout(3500);
   await page.evaluate(() => showPanel('stundenplan')).catch(() => {});
@@ -107,8 +107,8 @@ test('Screen 4 — LP-Ansicht getrennt von Klassenansicht', async () => {
   const page    = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
   await page.goto(URL, { waitUntil: 'networkidle', timeout: 30000 });
-  await page.locator('.form-input[type="email"]').fill(EMAIL);
-  await page.locator('.form-input[type="password"]').fill(PW);
+  await page.locator('#view-login .form-input[type="email"]').fill(EMAIL);
+  await page.locator('#view-login .form-input[type="password"]').fill(PW);
   await page.locator('#login-prototype-btn').click();
   await page.waitForTimeout(3500);
   await page.evaluate(() => showPanel('stundenplan')).catch(() => {});
