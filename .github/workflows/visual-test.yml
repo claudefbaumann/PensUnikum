@@ -1,0 +1,47 @@
+name: Visual Regression Tests
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  visual-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          npm init -y
+          npm install @playwright/test
+          npx playwright install chromium --with-deps
+
+      - name: Run Tests
+        run: npx playwright test visual.spec.js --reporter=list
+        env:
+          TEST_URL: https://pensunikum.authenticus.ch/app.html
+          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
+          TEST_PW: ${{ secrets.TEST_PW }}
+
+      - name: Upload Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ github.run_number }}
+          path: screenshots/
+          retention-days: 14
+
+      - name: Upload HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ github.run_number }}
+          path: playwright-report/
+          retention-days: 14
