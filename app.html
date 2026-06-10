@@ -278,66 +278,7 @@
 </div>
 
 
-<script>
-// ── Login Bootstrap (Fallback) ──────────────────────────────────────────────
-// Läuft sofort; wird nach dem grossen Script durch echte Funktionen ersetzt.
-window.currentRole = 'admin';
 
-window.setRole = function(role, el){
-  window.currentRole = role;
-  document.querySelectorAll('#view-login .role-chip').forEach(function(n){ n.classList.remove('active'); });
-  if(el) el.classList.add('active');
-};
-
-// doLogin: führt echten doLogin aus wenn verfügbar, sonst Minimalversion
-window.doLogin = function(){
-  var role = window.currentRole || 'admin';
-  // Echter doLogin vorhanden? (nach Laden des grossen Scripts)
-  if(typeof window._realDoLogin === 'function'){
-    window._realDoLogin(role);
-    return;
-  }
-  // Minimalversion: View wechseln und Rolle anzeigen
-  var login=document.getElementById('view-login');
-  var app=document.getElementById('view-app');
-  if(login) login.classList.remove('active');
-  if(app){ app.classList.add('active'); }
-  var roleMap={
-    admin:{label:'authenticus Admin',user:'Claude Baumann',initials:'CB'},
-    verband:{label:'Verbandsleitung',user:'P. Gerber',initials:'PG'},
-    schule:{label:'Schulleitung',user:'M. Huber',initials:'MH'},
-    lehrer:{label:'Lehrperson',user:'S. Ritter',initials:'SR'}
-  };
-  var rm=roleMap[role]||roleMap.admin;
-  var el; 
-  el=document.getElementById('sidebar-role-name'); if(el) el.textContent=rm.label;
-  el=document.getElementById('user-name'); if(el) el.textContent=rm.user;
-  el=document.getElementById('user-role-label'); if(el) el.textContent=rm.label;
-  el=document.getElementById('user-avatar'); if(el) el.textContent=rm.initials;
-  // Wiederholt versuchen bis _realDoLogin vom grossen Script definiert wurde
-  var _retryCount = 0;
-  var _retryInterval = setInterval(function(){
-    _retryCount++;
-    if(typeof window._realDoLogin === 'function'){
-      clearInterval(_retryInterval);
-      window._realDoLogin(role);
-    } else if(_retryCount > 20){
-      clearInterval(_retryInterval); // nach 10s aufgeben
-    }
-  }, 500);
-};
-
-// Event-Delegation für Login-Controls (funktioniert auch ohne inline-onclick)
-document.addEventListener('click', function(e){
-  var chip = e.target.closest && e.target.closest('#view-login .role-chip[data-role]');
-  if(chip){ e.preventDefault(); window.setRole(chip.dataset.role, chip); return; }
-  var btn = e.target.closest && e.target.closest('#login-m365-btn,#login-google-btn,#login-prototype-btn,.sso-btn,.btn-primary');
-  if(btn && document.getElementById('view-login') && document.getElementById('view-login').classList.contains('active')){
-    e.preventDefault(); window.doLogin();
-  }
-});
-window.__login_bootstrap_ok = true;
-</script>
 <!-- ══ APP ══ -->
 <div id="view-app" class="view">
   <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
@@ -924,6 +865,10 @@ window.__login_bootstrap_ok = true;
 </div><!-- /view-app -->
 
 <script>
+// Window-Registrierungen für Login (vor ROLES damit Inline-onclick sofort funktioniert)
+window.currentRole = 'admin';
+window.setRole = null; // wird unten definiert
+window.doLogin = null; // wird unten definiert
 const ROLES = {
   admin:  { label:'authenticus Admin', user:'Claude Baumann', initials:'CB', nav:[
     {section:'System',items:[
@@ -963,9 +908,11 @@ let activePanel = '';
 
 function setRole(role, el){
   currentRole = role;
+  window.currentRole = role;
   document.querySelectorAll('.role-chip').forEach(c=>c.classList.remove('active'));
-  el.classList.add('active');
+  if(el) el.classList.add('active');
 }
+window.setRole = setRole;
 
 function doLogin(){
   _realDoLogin(window.currentRole || currentRole || 'admin');
@@ -1003,6 +950,9 @@ function _realDoLogin(role){
   document.getElementById('view-app').classList.add('active');
   loadVerbaende().then(() => showPanel(firstPanel));
 }
+window._realDoLogin = _realDoLogin;
+window.doLogin = doLogin;
+
 
 
 function doLogout(){
