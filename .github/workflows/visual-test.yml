@@ -8,14 +8,14 @@ on:
 jobs:
   visual-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install Playwright
         run: |
@@ -24,7 +24,7 @@ jobs:
           npx playwright install chromium --with-deps
 
       - name: Run Tests
-        run: npx playwright test visual.spec.js --reporter=list
+        run: npx playwright test visual.spec.js --reporter=list,html
         env:
           TEST_URL: https://pensunikum.authenticus.ch/app.html
           TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
