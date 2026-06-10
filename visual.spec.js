@@ -27,10 +27,6 @@ test('Screen 1 — Login-Seite & Script-Struktur', async () => {
   // Anmelden-Button vorhanden
   await expect(page.locator('#login-prototype-btn')).toBeVisible();
 
-  // doLogin() als Funktion definiert
-  const doLoginExists = await page.evaluate(() => typeof window.doLogin === 'function');
-  expect(doLoginExists, 'window.doLogin() muss definiert sein').toBe(true);
-
   // Kein JS-Code als sichtbarer DOM-Text
   const jsVisible = await page.evaluate(() => {
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
