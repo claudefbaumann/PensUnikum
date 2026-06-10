@@ -25,8 +25,17 @@ test('Screen 1 — Login-Seite & Script-Struktur', async () => {
   expect(doLoginExists, 'window.doLogin() muss definiert sein').toBe(true);
 
   const body = await page.innerText('body');
-  expect(body, 'Kein JS-Code als sichtbarer Text').not.toContain('w.document.close');
-  expect(body, 'Kein JS-Code als sichtbarer Text').not.toContain('function renderStundenplan');
+// Prüft ob JS-Code als sichtbarer DOM-Text erscheint (ausserhalb von <script>-Tags)
+const jsVisible = await page.evaluate(() => {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    const t = node.textContent.trim();
+    if (t.includes('w.document.close') || t.includes('function renderStundenplan')) return true;
+  }
+  return false;
+});
+expect(jsVisible, 'JS-Code erscheint als sichtbarer Text im DOM').toBe(false);
 
   expect(jsErrors, `JS-Fehler beim Laden: ${jsErrors.join(', ')}`).toHaveLength(0);
   await browser.close();
