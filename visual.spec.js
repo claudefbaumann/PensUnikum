@@ -8,7 +8,7 @@ const HAS_CREDS = !!(EMAIL && PW);
 
 if (!fs.existsSync('screenshots')) fs.mkdirSync('screenshots');
 
-// Screen 1: Login-Seite & Script-Struktur (kein Login nötig)
+// ── Screen 1: Login-Seite & Script-Struktur (kein Login nötig) ─────────────
 test('Screen 1 — Login-Seite & Script-Struktur', async () => {
   const browser = await chromium.launch();
   const page    = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -18,30 +18,37 @@ test('Screen 1 — Login-Seite & Script-Struktur', async () => {
   await page.goto(URL, { waitUntil: 'networkidle', timeout: 30000 });
   await page.screenshot({ path: 'screenshots/01_login.png' });
 
-  await expect(page.locator('#login-email')).toBeVisible();
-  await expect(page.locator('#login-btn')).toBeVisible();
+  // Login-View sichtbar
+  await expect(page.locator('#view-login')).toBeVisible({ timeout: 10000 });
 
+  // E-Mail-Input vorhanden (class="form-input", kein id)
+  await expect(page.locator('.form-input[type="email"]')).toBeVisible();
+
+  // Anmelden-Button vorhanden
+  await expect(page.locator('#login-prototype-btn')).toBeVisible();
+
+  // doLogin() als Funktion definiert
   const doLoginExists = await page.evaluate(() => typeof window.doLogin === 'function');
   expect(doLoginExists, 'window.doLogin() muss definiert sein').toBe(true);
 
-  const body = await page.innerText('body');
-// Prüft ob JS-Code als sichtbarer DOM-Text erscheint (ausserhalb von <script>-Tags)
-const jsVisible = await page.evaluate(() => {
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  let node;
-  while ((node = walker.nextNode())) {
-    const t = node.textContent.trim();
-    if (t.includes('w.document.close') || t.includes('function renderStundenplan')) return true;
-  }
-  return false;
-});
-expect(jsVisible, 'JS-Code erscheint als sichtbarer Text im DOM').toBe(false);
+  // Kein JS-Code als sichtbarer DOM-Text
+  const jsVisible = await page.evaluate(() => {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const t = node.textContent.trim();
+      if (t.includes('w.document.close') || t.includes('function renderStundenplan')) return true;
+    }
+    return false;
+  });
+  expect(jsVisible, 'JS-Code erscheint als sichtbarer Text im DOM').toBe(false);
 
+  // Keine JS-Fehler beim Laden
   expect(jsErrors, `JS-Fehler beim Laden: ${jsErrors.join(', ')}`).toHaveLength(0);
   await browser.close();
 });
 
-// Screen 2: Toolbar — genau 1 Regeln-Button (benötigt Login)
+// ── Screen 2: Toolbar — genau 1 Regeln-Button (benötigt Login) ────────────
 test('Screen 2 — Toolbar (1× Regeln-Button)', async () => {
   test.skip(!HAS_CREDS, 'TEST_EMAIL/TEST_PW nicht gesetzt — übersprungen');
   const browser = await chromium.launch();
@@ -50,9 +57,9 @@ test('Screen 2 — Toolbar (1× Regeln-Button)', async () => {
   page.on('pageerror', e => jsErrors.push(e.message));
 
   await page.goto(URL, { waitUntil: 'networkidle', timeout: 30000 });
-  await page.fill('#login-email', EMAIL);
-  await page.fill('#login-password', PW);
-  await page.click('#login-btn');
+  await page.locator('.form-input[type="email"]').fill(EMAIL);
+  await page.locator('.form-input[type="password"]').fill(PW);
+  await page.locator('#login-prototype-btn').click();
   await page.waitForTimeout(3500);
   await page.evaluate(() => showPanel('stundenplan')).catch(() => {});
   await page.waitForTimeout(1000);
@@ -64,16 +71,16 @@ test('Screen 2 — Toolbar (1× Regeln-Button)', async () => {
   await browser.close();
 });
 
-// Screen 3: Scheduler-Grid — keine UUID-Kürzel (benötigt Login)
+// ── Screen 3: Scheduler-Grid — keine UUID-Kürzel (benötigt Login) ─────────
 test('Screen 3 — Scheduler-Grid (keine UUID-Kürzel)', async () => {
   test.skip(!HAS_CREDS, 'TEST_EMAIL/TEST_PW nicht gesetzt — übersprungen');
   const browser = await chromium.launch();
   const page    = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
   await page.goto(URL, { waitUntil: 'networkidle', timeout: 30000 });
-  await page.fill('#login-email', EMAIL);
-  await page.fill('#login-password', PW);
-  await page.click('#login-btn');
+  await page.locator('.form-input[type="email"]').fill(EMAIL);
+  await page.locator('.form-input[type="password"]').fill(PW);
+  await page.locator('#login-prototype-btn').click();
   await page.waitForTimeout(3500);
   await page.evaluate(() => showPanel('stundenplan')).catch(() => {});
   await page.waitForTimeout(1000);
@@ -83,7 +90,7 @@ test('Screen 3 — Scheduler-Grid (keine UUID-Kürzel)', async () => {
     await page.locator('#sp-klasse-select').selectOption({ index: 1 });
     await page.waitForTimeout(800);
   }
-  await page.click('#btn-generate-sp').catch(() => {});
+  await page.locator('#btn-generate-sp').click().catch(() => {});
   await page.waitForTimeout(4000);
   await page.screenshot({ path: 'screenshots/03_scheduler.png', fullPage: true });
 
@@ -93,16 +100,16 @@ test('Screen 3 — Scheduler-Grid (keine UUID-Kürzel)', async () => {
   await browser.close();
 });
 
-// Screen 4: LP-Ansicht getrennt von Klassenansicht (benötigt Login)
+// ── Screen 4: LP-Ansicht getrennt von Klassenansicht (benötigt Login) ───────
 test('Screen 4 — LP-Ansicht getrennt von Klassenansicht', async () => {
   test.skip(!HAS_CREDS, 'TEST_EMAIL/TEST_PW nicht gesetzt — übersprungen');
   const browser = await chromium.launch();
   const page    = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
   await page.goto(URL, { waitUntil: 'networkidle', timeout: 30000 });
-  await page.fill('#login-email', EMAIL);
-  await page.fill('#login-password', PW);
-  await page.click('#login-btn');
+  await page.locator('.form-input[type="email"]').fill(EMAIL);
+  await page.locator('.form-input[type="password"]').fill(PW);
+  await page.locator('#login-prototype-btn').click();
   await page.waitForTimeout(3500);
   await page.evaluate(() => showPanel('stundenplan')).catch(() => {});
   await page.waitForTimeout(1000);
