@@ -279,64 +279,55 @@
 
 
 <script>
-window.currentRole = window.currentRole || 'admin';
+// ── Login Bootstrap (Fallback) ──────────────────────────────────────────────
+// Läuft sofort; wird nach dem grossen Script durch echte Funktionen ersetzt.
+window.currentRole = 'admin';
+
 window.setRole = function(role, el){
   window.currentRole = role;
   document.querySelectorAll('#view-login .role-chip').forEach(function(n){ n.classList.remove('active'); });
   if(el) el.classList.add('active');
 };
+
+// doLogin: führt echten doLogin aus wenn verfügbar, sonst Minimalversion
 window.doLogin = function(){
   var role = window.currentRole || 'admin';
-  try { if (typeof currentRole !== 'undefined') currentRole = role; } catch(e) {}
-  try {
-    var login=document.getElementById('view-login');
-    var app=document.getElementById('view-app');
-    if(login) login.classList.remove('active');
-    if(app) app.classList.add('active');
-    var roleName=document.getElementById('sidebar-role-name');
-    var userName=document.getElementById('user-name');
-    var roleLabel=document.getElementById('user-role-label');
-    var avatar=document.getElementById('user-avatar');
-    var roleMap={
-      admin:{label:'authenticus Admin',user:'Claude Baumann',initials:'CB'},
-      verband:{label:'Verbandsleitung',user:'P. Gerber',initials:'PG'},
-      schule:{label:'Schulleitung',user:'M. Huber',initials:'MH'},
-      lehrer:{label:'Lehrperson',user:'S. Ritter',initials:'SR'}
-    };
-    var r=roleMap[role]||roleMap.admin;
-    if(roleName) roleName.textContent=r.label;
-    if(userName) userName.textContent=r.user;
-    if(roleLabel) roleLabel.textContent=r.label;
-    if(avatar) avatar.textContent=r.initials;
-    if(typeof ROLES !== 'undefined' && typeof showPanel === 'function'){
-      var nav=document.getElementById('sidebar-nav');
-      if(nav && ROLES[role]){
-        nav.innerHTML='';
-        ROLES[role].nav.forEach(function(s){
-          var sec=document.createElement('div');
-          sec.className='nav-section';
-          sec.innerHTML='<div class="nav-section-label">'+s.section+'</div>';
-          s.items.forEach(function(item){
-            var btn=document.createElement('button');
-            btn.className='nav-item';
-            btn.dataset.panel=item.id;
-            btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+item.icon+'</svg>'+item.label;
-            btn.addEventListener('click', function(){ showPanel(item.id); });
-            sec.appendChild(btn);
-          });
-          nav.appendChild(sec);
-        });
-        var firstPanel=ROLES[role].nav[0].items[0].id;
-        try { if(typeof loadVerbaende==='function'){ Promise.resolve(loadVerbaende()).then(function(){ showPanel(firstPanel); }); } else { showPanel(firstPanel); } } catch(e){}
-      }
-    }
-  } catch(e) {}
+  // Echter doLogin vorhanden? (nach Laden des grossen Scripts)
+  if(typeof _realDoLogin === 'function'){
+    _realDoLogin(role);
+    return;
+  }
+  // Minimalversion: View wechseln und Rolle anzeigen
+  var login=document.getElementById('view-login');
+  var app=document.getElementById('view-app');
+  if(login) login.classList.remove('active');
+  if(app){ app.classList.add('active'); }
+  var roleMap={
+    admin:{label:'authenticus Admin',user:'Claude Baumann',initials:'CB'},
+    verband:{label:'Verbandsleitung',user:'P. Gerber',initials:'PG'},
+    schule:{label:'Schulleitung',user:'M. Huber',initials:'MH'},
+    lehrer:{label:'Lehrperson',user:'S. Ritter',initials:'SR'}
+  };
+  var rm=roleMap[role]||roleMap.admin;
+  var el; 
+  el=document.getElementById('sidebar-role-name'); if(el) el.textContent=rm.label;
+  el=document.getElementById('user-name'); if(el) el.textContent=rm.user;
+  el=document.getElementById('user-role-label'); if(el) el.textContent=rm.label;
+  el=document.getElementById('user-avatar'); if(el) el.textContent=rm.initials;
+  // Nach kurzem Delay nochmals versuchen falls grosses Script inzwischen geladen
+  setTimeout(function(){
+    if(typeof _realDoLogin === 'function') _realDoLogin(role);
+  }, 200);
 };
+
+// Event-Delegation für Login-Controls (funktioniert auch ohne inline-onclick)
 document.addEventListener('click', function(e){
-  var chip=e.target.closest && e.target.closest('#view-login .role-chip[data-role]');
-  if(chip){ e.preventDefault(); window.setRole(chip.dataset.role, chip); }
-  var btn=e.target.closest && e.target.closest('#login-m365-btn,#login-google-btn,#login-prototype-btn');
-  if(btn){ e.preventDefault(); window.doLogin(); }
+  var chip = e.target.closest && e.target.closest('#view-login .role-chip[data-role]');
+  if(chip){ e.preventDefault(); window.setRole(chip.dataset.role, chip); return; }
+  var btn = e.target.closest && e.target.closest('#login-m365-btn,#login-google-btn,#login-prototype-btn,.sso-btn,.btn-primary');
+  if(btn && document.getElementById('view-login') && document.getElementById('view-login').classList.contains('active')){
+    e.preventDefault(); window.doLogin();
+  }
 });
 window.__login_bootstrap_ok = true;
 </script>
@@ -970,7 +961,12 @@ function setRole(role, el){
 }
 
 function doLogin(){
-  const r = ROLES[currentRole];
+  _realDoLogin(window.currentRole || currentRole || 'admin');
+}
+function _realDoLogin(role){
+  currentRole = role;
+  window.currentRole = role;
+  const r = ROLES[currentRole] || ROLES['admin'];
   document.getElementById('sidebar-role-name').textContent = r.label;
   document.getElementById('user-name').textContent = r.user;
   document.getElementById('user-role-label').textContent = r.label;
