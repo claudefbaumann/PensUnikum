@@ -27,11 +27,13 @@ test('Screen 1 — Login-Seite & Script-Struktur', async () => {
   // Anmelden-Button vorhanden
   await expect(page.locator('#login-prototype-btn')).toBeVisible();
 
-  // Kein JS-Code als sichtbarer DOM-Text
+  // Kein JS-Code als sichtbarer DOM-Text (Script/Style-Tags werden ignoriert)
   const jsVisible = await page.evaluate(() => {
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     let node;
     while ((node = walker.nextNode())) {
+      const parent = node.parentElement;
+      if (parent && ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) continue;
       const t = node.textContent.trim();
       if (t.includes('w.document.close') || t.includes('function renderStundenplan')) return true;
     }
