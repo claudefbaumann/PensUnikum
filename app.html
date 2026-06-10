@@ -3826,7 +3826,7 @@ function printStundenplan() {
     + '<div class="meta">Stand: ' + today + ' | Beginn: ' + startzeit + ' | Lektion: ' + lektMin + ' Min.</div>'
     + '<div class="legende">' + legendeHTML + '</div>'
     + gridHTML
-    + '<script>window.onload=function(){ document.title="Stundenplan_' + today + '"; window.print(); }<\/script>'
+    + '<script>window.onload=function(){ document.title="Stundenplan_' + today + '"; window.print(); }\x3c/script>'
     + '</body></html>');
   w.document.close();
 }
@@ -3951,7 +3951,7 @@ function printSchedulerVariante() {
     + '<h1>Stundenplan-Variante: ' + v.name + '</h1>'
     + '<div class="meta">Stand: ' + today + ' | Score: ' + v.score + ' Pkt. | ' + v.iterationen + ' Opt.-Iterationen</div>'
     + gridHTML
-    + '<script>window.onload=function(){ document.title="Stundenplan_' + today + '"; window.print(); }<\/script>'
+    + '<script>window.onload=function(){ document.title="Stundenplan_' + today + '"; window.print(); }\x3c/script>'
     + '</body></html>');
   w.document.close();
 }
