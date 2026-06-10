@@ -865,10 +865,6 @@
 </div><!-- /view-app -->
 
 <script>
-// Window-Registrierungen für Login (vor ROLES damit Inline-onclick sofort funktioniert)
-window.currentRole = 'admin';
-window.setRole = null; // wird unten definiert
-window.doLogin = null; // wird unten definiert
 const ROLES = {
   admin:  { label:'authenticus Admin', user:'Claude Baumann', initials:'CB', nav:[
     {section:'System',items:[
@@ -4533,6 +4529,9 @@ if(document.readyState==='loading'){
 
 
 window._realDoLogin = _realDoLogin;
+window.doLogin = doLogin;
+window.setRole = setRole;
+window.currentRole = window.currentRole || currentRole || 'admin';
 window.__login_ok = true;
 </script>
 
