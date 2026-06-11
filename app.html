@@ -3894,73 +3894,22 @@ window.__login_ok = true;
 }
 
 function printSchedulerVariante() {
-  if (!_scheduler_variants || !_scheduler_variants.length) {
-    alert('Kein Stundenplan vorhanden. Bitte zuerst generieren.'); return;
-  }
-  const v     = _scheduler_variants[_scheduler_active_variant || 0];
-  const today = new Date().toISOString().slice(0, 10);
-  const gridHTML = document.getElementById('scheduler-grid-output')?.innerHTML || '';
+  const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
   const w = window.open('', '_blank');
-  if (!w) { alert('Popup wurde blockiert.'); return; }
-  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stundenplan_' + today + '</title>'
-    + '<style>'
-    + '* { box-sizing:border-box; margin:0; padding:0; }'
-    + 'body { font-family:Arial,sans-serif; font-size:11px; padding:16px; color:#222; }'
-    + 'h1 { font-size:16px; margin-bottom:4px; }'
-    + '.meta { font-size:10px; color:#666; margin-bottom:10px; }'
-    + 'table { border-collapse:collapse; width:100%; }'
-    + 'th,td { border:1px solid #bbb; padding:3px 5px; vertical-align:top; }'
-    + 'th { background:#f0f0f0; font-weight:600; text-align:center; }'
-    + '@media print { @page { size:A4 landscape; margin:10mm; } }'
-    + '
-    /* ── Planungsregeln ── */
-    .regel-filter-btn{background:none;border:none;padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);font-size:var(--text-sm);color:var(--color-text-muted);cursor:pointer;transition:all var(--transition-interactive)}
-    .regel-filter-btn:hover{background:var(--color-surface-offset);color:var(--color-text)}
-    .regel-filter-btn.active{background:var(--color-primary-highlight);color:var(--color-primary);font-weight:600}
-    .regel-gruppe{margin-bottom:var(--space-6)}
-    .regel-gruppe-header{display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-3);padding-bottom:var(--space-2);border-bottom:1px solid var(--color-divider)}
-    .regel-gruppe-title{font-size:var(--text-sm);font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.06em}
-    .regel-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:var(--space-4) var(--space-5);margin-bottom:var(--space-2);display:flex;align-items:flex-start;gap:var(--space-4);transition:box-shadow var(--transition-interactive)}
-    .regel-card:hover{box-shadow:var(--shadow-sm)}
-    .regel-card.inactive{opacity:.5}
-    .regel-card.locked{background:var(--color-surface-offset)}
-    .toggle-switch{position:relative;width:36px;height:20px;cursor:pointer;flex-shrink:0;margin-top:2px}
-    .toggle-switch input{opacity:0;width:0;height:0;position:absolute}
-    .toggle-track{position:absolute;inset:0;background:var(--color-border);border-radius:var(--radius-full);transition:background var(--transition-interactive)}
-    .toggle-track::after{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform var(--transition-interactive)}
-    .toggle-switch input:checked+.toggle-track{background:var(--color-primary)}
-    .toggle-switch input:checked+.toggle-track::after{transform:translateX(16px)}
-    .toggle-switch.locked{cursor:not-allowed;opacity:.45}
-    .regel-body{flex:1;min-width:0}
-    .regel-header-row{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;margin-bottom:3px}
-    .regel-code{font-size:10px;font-weight:700;color:var(--color-text-faint);font-family:monospace;background:var(--color-surface-offset);padding:1px 5px;border-radius:3px}
-    .regel-name{font-size:var(--text-sm);font-weight:600;color:var(--color-text)}
-    .regel-badge{font-size:9px;font-weight:800;padding:2px 7px;border-radius:var(--radius-full);text-transform:uppercase;letter-spacing:.06em}
-    .badge-hard{background:#fee2e2;color:#b91c1c}
-    .badge-soft{background:#fef9c3;color:#a16207}
-    .badge-paed{background:#dcfce7;color:#15803d}
-    .badge-custom{background:var(--color-primary-highlight);color:var(--color-primary)}
-    [data-theme="dark"] .badge-hard{background:#450a0a;color:#fca5a5}
-    [data-theme="dark"] .badge-soft{background:#422006;color:#fde68a}
-    [data-theme="dark"] .badge-paed{background:#052e16;color:#86efac}
-    .regel-desc{font-size:var(--text-xs);color:var(--color-text-muted);line-height:1.5}
-    .regel-params{display:flex;align-items:center;gap:var(--space-4);margin-top:var(--space-3);flex-wrap:wrap}
-    .gewicht-dots{display:flex;gap:3px;align-items:center}
-    .gewicht-dot{width:9px;height:9px;border-radius:50%;background:var(--color-border);cursor:pointer;transition:background var(--transition-interactive);border:none;padding:0}
-    .gewicht-dot:hover{background:var(--color-primary-hover)}
-    .gewicht-dot.on{background:var(--color-primary)}
-    .param-label-sm{font-size:var(--text-xs);color:var(--color-text-muted)}
-    .param-input-sm{width:60px;padding:3px 7px;border:1px solid var(--color-border);border-radius:var(--radius-sm);font-size:var(--text-xs);background:var(--color-surface-2);color:var(--color-text)}
-
-  </style></head><body>'
-    + '<h1>Stundenplan-Variante: ' + v.name + '</h1>'
-    + '<div class="meta">Stand: ' + today + ' | Score: ' + v.score + ' Pkt. | ' + v.iterationen + ' Opt.-Iterationen</div>'
+  const gridHTML = document.getElementById('scheduler-grid-output').innerHTML;
+  const legendeHTML = document.getElementById('sp-legende')?.innerHTML || '';
+  w.document.write(
+    '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    + '<title>Stundenplan_' + today + '</title>'
+    + '<style>body{font-family:sans-serif;padding:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:4px 8px;font-size:11px}@media print{body{padding:0}}</style>'
+    + '</head><body>'
+    + legendeHTML
     + gridHTML
-    + '<script>window.onload=function(){ document.title="Stundenplan_"+today+"; window.print(); }<\/script>'
-    + '</body></html>');
+    + '</body></html>'
+  );
   w.document.close();
+  w.onload = function(){ w.document.title = 'Stundenplan_' + today; w.print(); };
 }
-
 // ─── TK-06: Daten-Export / Import ────────────────────────────────────────────
 async function exportAlleData() {
   const btn = document.getElementById('btn-export');
