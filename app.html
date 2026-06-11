@@ -3910,46 +3910,6 @@ function printSchedulerVariante() {
   w.document.close();
   w.onload = function(){ w.document.title = 'Stundenplan_' + today; w.print(); };
 }
-// ─── TK-06: Daten-Export / Import ────────────────────────────────────────────
-async function exportAlleData() {
-  const btn = document.getElementById('btn-export');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Exportiere…'; }
-  try {
-    const [
-      { data: verbaende },
-      { data: schulhaeuser },
-      { data: schulklassen },
-      { data: benutzer },
-      { data: klassen_faecher },
-      { data: lp_wuensche },
-      { data: schulstufen },
-    ] = await Promise.all([
-      db.from('verbaende').select('*'),
-      db.from('schulhaeuser').select('*'),
-      db.from('schulklassen').select('*'),
-      db.from('benutzer').select('*'),
-      db.from('klassen_faecher').select('*'),
-      db.from('lp_wuensche').select('*'),
-      db.from('schulstufen').select('*'),
-    ]);
-    const exportObj = {
-      version: '1.0', exportiert_am: new Date().toISOString(), app: 'PensUnikum',
-      daten: { verbaende, schulhaeuser, schulklassen, benutzer, klassen_faecher, lp_wuensche, schulstufen }
-    };
-    const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    const today = new Date().toISOString().slice(0, 10);
-    a.href = url; a.download = 'PensUnikum_Export_' + today + '.json'; a.click();
-    URL.revokeObjectURL(url);
-    showToast('✅ Export fertig — alle Tabellen heruntergeladen');
-  } catch(e) {
-    showToast('❌ Export fehlgeschlagen: ' + e.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '📥 Daten exportieren (JSON)'; }
-  }
-}
-
 async function importAlleData() {
   const input = document.createElement('input');
   input.type = 'file'; input.accept = '.json,application/json';
