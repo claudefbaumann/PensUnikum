@@ -27,19 +27,23 @@ test('Screen 1 — Login-Seite & Script-Struktur', async () => {
   // Anmelden-Button vorhanden
   await expect(page.locator('#login-prototype-btn')).toBeVisible();
 
-  // Kein JS-Code als sichtbarer DOM-Text (Script/Style-Tags ignorieren)
-  const jsVisible = await page.evaluate(() => {
+  // DEBUG: Was wird als sichtbarer JS-Text gefunden?
+  const jsLeaks = await page.evaluate(() => {
+    const found = [];
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     let node;
     while ((node = walker.nextNode())) {
       const parent = node.parentElement;
       if (parent && ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) continue;
       const t = node.textContent.trim();
-      if (t.includes('w.document.close') || t.includes('function renderStundenplan')) return true;
+      if (t.includes('w.document.close') || t.includes('function renderStundenplan')) {
+        const el = node.parentElement;
+        found.push(`TAG:<${el.tagName}> ID:"${el.id}" CLASS:"${el.className}" TEXT:"${t.slice(0,120)}"`);
+      }
     }
-    return false;
+    return found;
   });
-  expect(jsVisible, 'JS-Code erscheint als sichtbarer Text im DOM').toBe(false);
+  expect(jsLeaks, `Gefunden: ${jsLeaks.join(' | ')}`).toHaveLength(0);
 
   // Keine kritischen JS-Fehler (externe Ressourcen & Parse-Fehler von CDNs ignorieren)
   const criticalErrors = jsErrors.filter(e =>
