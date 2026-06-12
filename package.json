@@ -6,4 +6,5 @@
   "scripts": {
     "typecheck": "turbo run typecheck"
   }
+  "workspaces": ["apps/web"]
 }
